@@ -9,17 +9,32 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .sidebar { min-height: 100vh; }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; z-index: 1000; width: 250px; }
+            .main-content { margin-left: 0; }
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <div class="row">
+            <!-- 移动端顶部导航 -->
+            <nav class="navbar navbar-expand-md navbar-dark bg-dark d-md-none fixed-top">
+                <div class="container-fluid">
+                    <a class="navbar-brand" href="{{ url_for('teacher_dashboard') }}">教师管理</a>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarCanvas">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
+            </nav>
+
             <!-- 侧边栏 -->
-            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse bg-light">
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse bg-light offcanvas-md offcanvas-start" id="sidebarCanvas">
+                <div class="offcanvas-header d-md-none">
+                    <h5 class="offcanvas-title">教师管理</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarCanvas"></button>
+                </div>
                 <div class="position-sticky pt-3">
-                    <h5 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
-                        <span>教师管理</span>
-                    </h5>
                     <ul class="nav flex-column">
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('teacher_dashboard') }}">
@@ -49,70 +64,38 @@
             </nav>
 
             <!-- 主内容区 -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">答题数据统计</h1>
-                </div>
-
-                <!-- 班级筛选 -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <form method="GET" action="{{ url_for('teacher_stats') }}" class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">选择年段</label>
-                                <select name="grade" class="form-select">
-                                    <option value="">全部年段</option>
-                                    <option value="高一" {% if grade == '高一' %}selected{% endif %}>高一</option>
-                                    <option value="高二" {% if grade == '高二' %}selected{% endif %}>高二</option>
-                                    <option value="高三" {% if grade == '高三' %}selected{% endif %}>高三</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">选择班级</label>
-                                <select name="class_number" class="form-select">
-                                    <option value="">全部班级</option>
-                                    {% for n in range(1, 21) %}
-                                    <option value="{{ n }}" {% if class_number == n|string %}selected{% endif %}>{{ n }}班</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">&nbsp;</label>
-                                <button type="submit" class="btn btn-primary w-full">筛选</button>
-                            </div>
-                        </form>
-                        {% if grade or class_number %}
-                        <div class="mt-2">
-                            <a href="{{ url_for('teacher_stats') }}" class="text-muted text-sm">清除筛选</a>
-                        </div>
-                        {% endif %}
+                    <h1 class="h2">答题统计</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <span class="text-muted">欢迎, {{ session['name'] }}</span>
                     </div>
                 </div>
 
-                <!-- 统计卡片 -->
+                <!-- 总体统计卡片 -->
                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stat-value">{{ problem_stats|length }}</div>
+                            <div class="stat-value">{{ overall_stats.total_students }}</div>
+                            <div class="stat-label">学生总数</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stat-value">{{ overall_stats.total_problems }}</div>
                             <div class="stat-label">题目总数</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stat-value">{{ today_problems|length }}</div>
-                            <div class="stat-label">今日题目</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stat-value">{{ problem_stats|sum(attribute='stats.passed_students') }}</div>
-                            <div class="stat-label">通过学生总数</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stat-value">{{ problem_stats|sum(attribute='stats.total_runs') }}</div>
+                            <div class="stat-value">{{ overall_stats.total_runs }}</div>
                             <div class="stat-label">总运行次数</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stat-value">{{ overall_stats.total_ai_uses }}</div>
+                            <div class="stat-label">总AI分析次数</div>
                         </div>
                     </div>
                 </div>
@@ -120,7 +103,7 @@
                 <!-- 题目统计列表 -->
                 <div class="card">
                     <div class="card-header bg-dark text-white">
-                        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> 题目统计（今日题目置顶）</h5>
+                        <h5 class="mb-0"><i class="bi bi-book"></i> 题目统计</h5>
                     </div>
                     <div class="card-body">
                         {% if problem_stats %}
@@ -128,42 +111,31 @@
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>序号</th>
                                         <th>题目名称</th>
                                         <th>类别</th>
-                                        <th>是否今日</th>
-                                        <th>参与学生</th>
+                                        <th>尝试人数</th>
                                         <th>通过人数</th>
                                         <th>通过率</th>
-                                        <th>运行次数</th>
-                                        <th>AI分析次数</th>
                                         <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for item in problem_stats %}
+                                    {% for stat in problem_stats %}
                                     <tr>
-                                        <td>{{ loop.index }}</td>
-                                        <td>{{ item.problem.title }}</td>
-                                        <td><span class="badge bg-secondary">{{ item.problem.category }}</span></td>
+                                        <td>{{ stat.title }}</td>
+                                        <td><span class="badge bg-secondary">{{ stat.category }}</span></td>
+                                        <td>{{ stat.attempt_count }}</td>
+                                        <td>{{ stat.pass_count }}</td>
                                         <td>
-                                            {% if item.problem.is_today %}
-                                            <span class="badge bg-success">是</span>
+                                            {% if stat.attempt_count > 0 %}
+                                                {% set pass_rate = (stat.pass_count / stat.attempt_count * 100) | round(1) %}
+                                                {{ pass_rate }}%
                                             {% else %}
-                                            <span class="badge bg-gray-300">否</span>
+                                                0%
                                             {% endif %}
                                         </td>
-                                        <td>{{ item.stats.total_students }}</td>
-                                        <td>{{ item.stats.passed_students }}</td>
                                         <td>
-                                            <span class="badge {% if item.stats.pass_rate >= 60 %}bg-success{% elif item.stats.pass_rate >= 30 %}bg-warning{% else %}bg-danger{% endif %}">
-                                                {{ item.stats.pass_rate|round(1) }}%
-                                            </span>
-                                        </td>
-                                        <td>{{ item.stats.total_runs }}</td>
-                                        <td>{{ item.stats.total_ai_uses }}</td>
-                                        <td>
-                                            <a href="{{ url_for('problem_stats_detail', problem_id=item.problem.id) }}" class="btn btn-sm btn-info">详情</a>
+                                            <a href="{{ url_for('problem_stats', problem_id=stat.id) }}" class="btn btn-sm btn-primary">详情</a>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -174,6 +146,46 @@
                         <div class="text-center py-8">
                             <i class="bi bi-bar-chart-x text-gray-400 text-4xl mb-3"></i>
                             <p class="text-gray-500">暂无统计数据</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 学生统计列表 -->
+                <div class="card mt-4">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="bi bi-people"></i> 学生统计</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if student_stats %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>学生姓名</th>
+                                        <th>尝试题目数</th>
+                                        <th>通过题目数</th>
+                                        <th>运行次数</th>
+                                        <th>AI分析次数</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for stat in student_stats %}
+                                    <tr>
+                                        <td>{{ stat.name }}</td>
+                                        <td>{{ stat.attempted_problems }}</td>
+                                        <td>{{ stat.passed_problems }}</td>
+                                        <td>{{ stat.total_runs }}</td>
+                                        <td>{{ stat.total_ai_uses }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-8">
+                            <i class="bi bi-users text-gray-400 text-4xl mb-3"></i>
+                            <p class="text-gray-500">暂无学生数据</p>
                         </div>
                         {% endif %}
                     </div>

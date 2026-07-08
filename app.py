@@ -45,8 +45,8 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev_key_please_change')
 
 # AI 配置
 AI_API_KEY = os.getenv('DEEPSEEK_API_KEY', os.getenv('OPENAI_API_KEY', ''))
-AI_BASE_URL = os.getenv('DEEPSEEK_BASE_URL', os.getenv('OPENAI_BASE_URL', 'https://api.deepseek.com/v1'))
-AI_MODEL = os.getenv('DEEPSEEK_MODEL', os.getenv('OPENAI_MODEL', 'deepseek-chat'))
+AI_BASE_URL = os.getenv('DEEPSEEK_BASE_URL', os.getenv('OPENAI_BASE_URL', 'https://api.deepseek.com'))
+AI_MODEL = os.getenv('DEEPSEEK_MODEL', os.getenv('OPENAI_MODEL', 'deepseek-v4-flash'))
 
 # 限制配置
 RUN_COOLDOWN = 5  # 代码运行冷却时间（秒）

@@ -3,23 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>题目详情统计 - 在线Python编辑器</title>
+    <title>{{ problem.title }} - 统计详情 - 在线Python编辑器</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .sidebar { min-height: 100vh; }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; z-index: 1000; width: 250px; }
+            .main-content { margin-left: 0; }
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <div class="row">
+            <!-- 移动端顶部导航 -->
+            <nav class="navbar navbar-expand-md navbar-dark bg-dark d-md-none fixed-top">
+                <div class="container-fluid">
+                    <a class="navbar-brand" href="{{ url_for('teacher_dashboard') }}">教师管理</a>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarCanvas">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
+            </nav>
+
             <!-- 侧边栏 -->
-            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse bg-light">
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse bg-light offcanvas-md offcanvas-start" id="sidebarCanvas">
+                <div class="offcanvas-header d-md-none">
+                    <h5 class="offcanvas-title">教师管理</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarCanvas"></button>
+                </div>
                 <div class="position-sticky pt-3">
-                    <h5 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
-                        <span>教师管理</span>
-                    </h5>
                     <ul class="nav flex-column">
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('teacher_dashboard') }}">
@@ -49,94 +64,41 @@
             </nav>
 
             <!-- 主内容区 -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">{{ problem.title }}</h1>
+                    <div>
+                        <h1 class="h2">{{ problem.title }}</h1>
+                        <a href="{{ url_for('teacher_stats') }}" class="text-muted"><i class="bi bi-arrow-left"></i> 返回统计列表</a>
+                    </div>
                     <div class="btn-toolbar mb-2 mb-md-0">
-                        <a href="{{ url_for('teacher_stats') }}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> 返回
-                        </a>
+                        <span class="text-muted">欢迎, {{ session['name'] }}</span>
                     </div>
                 </div>
 
-                <!-- 班级筛选 -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <form method="get" class="row g-3">
-                            <div class="col-md-3">
-                                <label class="form-label text-sm">选择年段</label>
-                                <select name="grade" class="form-select">
-                                    <option value="">全部年段</option>
-                                    <option value="高一" {% if grade == '高一' %}selected{% endif %}>高一</option>
-                                    <option value="高二" {% if grade == '高二' %}selected{% endif %}>高二</option>
-                                    <option value="高三" {% if grade == '高三' %}selected{% endif %}>高三</option>
-                                    <option value="其他" {% if grade == '其他' %}selected{% endif %}>其他</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label text-sm">选择班级</label>
-                                <select name="class_number" class="form-select">
-                                    <option value="">全部班级</option>
-                                    {% for n in range(1, 21) %}
-                                    <option value="{{ n }}" {% if class_number == n|string %}selected{% endif %}>{{ n }}班</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-md-2 align-self-end">
-                                <button type="submit" class="btn btn-primary w-full">筛选</button>
-                            </div>
-                            <div class="col-md-2 align-self-end">
-                                <a href="{{ url_for('problem_stats_detail', problem_id=problem.id) }}" class="btn btn-secondary w-full">清除筛选</a>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- 题目信息卡片 -->
-                <div class="card mb-4">
-                    <div class="card-header bg-dark text-white">
-                        <h5 class="mb-0">题目信息</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>类别：</strong><span class="badge bg-secondary">{{ problem.category }}</span></p>
-                                <p><strong>描述：</strong>{{ problem.description | replace('\n', '<br>') | safe }}</p>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="bg-dark text-light p-3 rounded">
-                                    <strong>预期输出：</strong>
-                                    <pre class="text-sm mt-2">{{ problem.expected_output }}</pre>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 统计概览 -->
+                <!-- 统计卡片 -->
                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stat-value">{{ stats.total_students }}</div>
-                            <div class="stat-label">参与学生</div>
+                            <div class="stat-value">{{ stats.attempt_count }}</div>
+                            <div class="stat-label">尝试人数</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stat-value">{{ stats.passed_students }}</div>
+                            <div class="stat-value">{{ stats.pass_count }}</div>
                             <div class="stat-label">通过人数</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
-                            <div class="stat-value">{{ stats.pass_rate|round(1) }}%</div>
-                            <div class="stat-label">通过率</div>
+                            <div class="stat-value">{{ stats.total_runs }}</div>
+                            <div class="stat-label">总运行次数</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stats-card">
                             <div class="stat-value">{{ stats.total_ai_uses }}</div>
-                            <div class="stat-label">AI分析次数</div>
+                            <div class="stat-label">总AI分析次数</div>
                         </div>
                     </div>
                 </div>
@@ -144,49 +106,35 @@
                 <!-- 学生答题详情 -->
                 <div class="card">
                     <div class="card-header bg-dark text-white">
-                        <h5 class="mb-0"><i class="bi bi-users"></i> 学生答题详情</h5>
+                        <h5 class="mb-0"><i class="bi bi-people"></i> 学生答题详情</h5>
                     </div>
                     <div class="card-body">
-                        {% if student_stats %}
+                        {% if student_details %}
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>序号</th>
                                         <th>学生姓名</th>
-                                        <th>班级</th>
                                         <th>运行次数</th>
                                         <th>AI分析次数</th>
                                         <th>是否通过</th>
-                                        <th>最后提交</th>
-                                        <th>操作</th>
+                                        <th>通过时间</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for stat in student_stats %}
+                                    {% for detail in student_details %}
                                     <tr>
-                                        <td>{{ loop.index }}</td>
-                                        <td>{{ stat.name }}</td>
-                                        <td>{{ stat.class_display or '未知' }}</td>
-                                        <td>{{ stat.total_runs }}</td>
-                                        <td>{{ stat.total_ai_uses }}</td>
+                                        <td>{{ detail.name }}</td>
+                                        <td>{{ detail.total_runs }}</td>
+                                        <td>{{ detail.total_ai_uses }}</td>
                                         <td>
-                                            {% if stat.ever_passed %}
+                                            {% if detail.ever_passed %}
                                             <span class="badge bg-success">已通过</span>
                                             {% else %}
-                                            <span class="badge bg-danger">未通过</span>
+                                            <span class="badge bg-secondary">未通过</span>
                                             {% endif %}
                                         </td>
-                                        <td>{{ stat.last_submission or '-' }}</td>
-                                        <td>
-                                            {% if stat.passed_code %}
-                                            <button class="btn btn-sm btn-outline-primary" onclick="viewCode('{{ stat.name | e }}', {{ loop.index }})">
-                                                <i class="bi bi-code-slash"></i> 查看代码
-                                            </button>
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
+                                        <td>{{ detail.passed_at if detail.passed_at else '-' }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -205,76 +153,5 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
-    
-    <!-- 代码查看模态框 -->
-    <div class="modal fade" id="codeModal" tabindex="-1" aria-labelledby="codeModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title" id="codeModalLabel">学生通过的代码</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <h6 id="studentName" class="mb-3"></h6>
-                    <textarea id="codeTextarea" style="display: none;"></textarea>
-                    <div id="codeContent" style="height: 400px;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        // 存储学生代码数据
-        const studentCodes = {
-            {% for stat in student_stats %}
-            {% if stat.passed_code %}
-            {{ loop.index }}: {{ stat.passed_code | tojson }},
-            {% endif %}
-            {% endfor %}
-        };
-        
-        let codeEditor;
-        let currentCode = '';
-        
-        function viewCode(name, index) {
-            const code = studentCodes[index];
-            if (code) {
-                currentCode = code;
-                document.getElementById('studentName').textContent = '学生：' + name;
-                
-                // 如果还没有创建编辑器，创建一个
-                if (!codeEditor) {
-                    codeEditor = CodeMirror.fromTextArea(document.getElementById('codeTextarea'), {
-                        mode: 'python',
-                        theme: 'monokai',
-                        lineNumbers: true,
-                        readOnly: true,
-                        indentUnit: 4,
-                        tabSize: 4
-                    });
-                    codeEditor.setSize('100%', '600px');
-                }
-                
-                // 显示模态框
-                const modal = new bootstrap.Modal(document.getElementById('codeModal'));
-                modal.show();
-            }
-        }
-        
-        // 模态框显示后再设置代码内容
-        document.getElementById('codeModal').addEventListener('shown.bs.modal', function() {
-            if (codeEditor && currentCode) {
-                codeEditor.setValue(currentCode);
-                codeEditor.refresh();
-            }
-        });
-    </script>
 </body>
 </html>
