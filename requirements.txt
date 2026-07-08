@@ -1,0 +1,40 @@
+# Framework web
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Base de données
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.23
+
+# Requêtes HTTP pour les API d'IA
+requests==2.31.0
+
+# Gestion des variables d'environnement
+python-dotenv==1.0.0
+
+# Pour le déploiement en production
+gunicorn==21.2.0
+
+# Sécurité
+Flask-Talisman==1.1.0  # Pour les en-têtes de sécurité HTTP
+
+# Gestion des fichiers
+uuid==1.30
+
+# Traitement HTML et Markdown
+beautifulsoup4==4.13.3
+soupsieve==2.6
+
+# Génération de notebooks Jupyter
+nbformat==5.9.2
+
+# Bibliothèques scientifiques (comme dans Basthon)
+numpy
+pandas
+scipy
+sympy
+matplotlib
+
+# Bibliothèques de traitement de texte
+nltk
+textblob

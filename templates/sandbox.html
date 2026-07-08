@@ -1,0 +1,400 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Python 在线沙箱</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    在这里自由编写 Python 代码，支持中文。写完后点击「运行代码」查看输出，或点击「AI 评审」获取代码分析。
+                </p>
+
+                <div class="alert alert-info mt-3">
+                    <h5><i class="bi bi-info-circle"></i> 预置模块</h5>
+                    <p>以下模块开箱即用，无需 import：</p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul>
+                                <li><strong>科学计算：</strong>numpy (np), pandas (pd), scipy, sympy (sp), matplotlib (plt)</li>
+                                <li><strong>文本处理：</strong>re, string</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li><strong>标准库：</strong>math, random, statistics</li>
+                                <li><strong>示例：</strong>可直接使用 <code>np.array([1, 2, 3])</code></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 代码编辑器 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">代码编辑器</h5>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-light" id="open-file-btn" title="打开文件 (Ctrl+O)">
+                        <i class="bi bi-folder2-open"></i> 打开
+                    </button>
+                    <button class="btn btn-sm btn-light" id="download-code-btn" title="下载代码 (Ctrl+S)">
+                        <i class="bi bi-download"></i> 下载
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <textarea id="code-editor" class="form-control" rows="18">
+# 欢迎使用 Python 在线沙箱！
+# 支持中文输入输出
+
+# 示例：打印中文
+print("你好，世界！")
+
+# 示例：input() 交互
+name = input("请输入你的名字：")
+print(f"你好，{name}！")
+
+# 示例：基本运算
+a = 10
+b = 20
+result = a + b
+print(f"{a} + {b} = {result}")
+
+# 示例：循环
+print("\n1 到 5 的数字：")
+for i in range(1, 6):
+    print(i)
+</textarea>
+                <div class="d-flex justify-content-between mt-3">
+                    <button class="btn btn-primary" id="run-code-btn"><i class="bi bi-play-circle"></i> 运行代码</button>
+                    <div class="btn-group">
+                        <button class="btn btn-success" id="evaluate-code-btn"><i class="bi bi-brain"></i> AI 评审</button>
+                        <button class="btn btn-outline-secondary" id="clear-code-btn"><i class="bi bi-trash"></i> 清空</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 执行结果 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">执行结果</h5>
+            </div>
+            <div class="card-body p-0">
+                <pre id="execution-output" class="m-0" style="min-height: 420px; max-height: 500px; overflow-y: auto; padding: 1rem;">
+# 点击「运行代码」查看输出
+                </pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI 评审结果 -->
+<div class="row" id="evaluation-section" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-brain"></i> AI 代码评审结果</h5>
+                <button class="btn btn-sm btn-light" id="close-evaluation-btn">
+                    <i class="bi bi-x-lg"></i> 关闭
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="evaluation-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- input() 弹窗 -->
+<div class="modal fade" id="inputModal" tabindex="-1" aria-labelledby="inputModalLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="inputModalLabel">需要输入</h5>
+      </div>
+      <div class="modal-body">
+        <p id="input-prompt">请输入一个值：</p>
+        <div class="input-group">
+          <input type="text" class="form-control" id="input-value" placeholder="在此输入...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="submit-input">确定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 文件选择 -->
+<input type="file" id="file-input" accept=".py,.txt" style="display: none;">
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let codeEditor;
+    document.addEventListener('DOMContentLoaded', function() {
+        codeEditor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+            mode: 'python',
+            theme: 'monokai',
+            lineNumbers: true,
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false,
+            lineWrapping: true,
+            autofocus: true
+        });
+    });
+
+    const runCodeBtn = document.getElementById('run-code-btn');
+    const evaluateCodeBtn = document.getElementById('evaluate-code-btn');
+    const clearCodeBtn = document.getElementById('clear-code-btn');
+    const executionOutput = document.getElementById('execution-output');
+    const evaluationSection = document.getElementById('evaluation-section');
+    const evaluationContent = document.getElementById('evaluation-content');
+    const closeEvaluationBtn = document.getElementById('close-evaluation-btn');
+    const openFileBtn = document.getElementById('open-file-btn');
+    const downloadCodeBtn = document.getElementById('download-code-btn');
+    const fileInput = document.getElementById('file-input');
+    const inputModal = new bootstrap.Modal(document.getElementById('inputModal'));
+    const inputPrompt = document.getElementById('input-prompt');
+    const inputValue = document.getElementById('input-value');
+    const submitInputBtn = document.getElementById('submit-input');
+
+    let currentExecutionId = null;
+    let executionInterval = null;
+
+    function containsInputCall(code) {
+        const lines = code.split('\n');
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine === '' || trimmedLine.startsWith('#')) continue;
+            if (trimmedLine.includes('input(')) return true;
+        }
+        return false;
+    }
+
+    // 运行代码
+    runCodeBtn.addEventListener('click', function() {
+        const code = codeEditor.getValue();
+        if (!code.trim()) {
+            alert('请先编写代码再执行');
+            return;
+        }
+        executionOutput.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">执行中...</p></div>';
+
+        if (containsInputCall(code)) {
+            fetch('/start-execution', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code: code})
+            })
+            .then(response => response.json())
+            .then(data => {
+                currentExecutionId = data.execution_id;
+                executionInterval = setInterval(checkExecutionStatus, 500);
+            })
+            .catch(error => {
+                console.error('错误:', error);
+                executionOutput.innerHTML = '<span class="text-danger">启动执行失败。</span>';
+            });
+        } else {
+            fetch('/execute-code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code: code})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    executionOutput.innerHTML = `<span class="text-danger">${escapeHtml(data.error)}</span>`;
+                } else {
+                    executionOutput.innerHTML = escapeHtml(data.output) || '<span class="text-muted">无输出</span>';
+                }
+            })
+            .catch(error => {
+                console.error('错误:', error);
+                executionOutput.innerHTML = '<span class="text-danger">代码执行出错。</span>';
+            });
+        }
+    });
+
+    function checkExecutionStatus() {
+        if (!currentExecutionId) return;
+        fetch(`/execution-status/${currentExecutionId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.input_required) {
+                    clearInterval(executionInterval);
+                    inputPrompt.textContent = data.input_prompt || '请输入一个值：';
+                    inputValue.value = '';
+                    inputModal.show();
+                    setTimeout(() => inputValue.focus(), 500);
+                }
+                else if (data.status === 'completed' || data.status === 'error') {
+                    clearInterval(executionInterval);
+                    currentExecutionId = null;
+                    if (data.result && data.result.error) {
+                        executionOutput.innerHTML = `<span class="text-danger">${escapeHtml(data.result.error)}</span>`;
+                    } else if (data.result) {
+                        executionOutput.innerHTML = escapeHtml(data.result.output) || '<span class="text-muted">无输出</span>';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('错误:', error);
+                clearInterval(executionInterval);
+                currentExecutionId = null;
+                executionOutput.innerHTML = '<span class="text-danger">检查执行状态失败。</span>';
+            });
+    }
+
+    submitInputBtn.addEventListener('click', submitInput);
+    inputValue.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitInput();
+        }
+    });
+
+    function submitInput() {
+        const value = inputValue.value;
+        inputModal.hide();
+        fetch(`/provide-input/${currentExecutionId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({input: value})
+        })
+        .then(response => response.json())
+        .then(data => {
+            executionInterval = setInterval(checkExecutionStatus, 500);
+        })
+        .catch(error => {
+            console.error('错误:', error);
+            executionOutput.innerHTML = '<span class="text-danger">输入提交失败。</span>';
+        });
+    }
+
+    // AI 评审
+    evaluateCodeBtn.addEventListener('click', function() {
+        const code = codeEditor.getValue();
+        if (!code.trim()) {
+            alert('请先编写代码再进行评审');
+            return;
+        }
+        evaluationContent.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-success" role="status"></div><p class="mt-2">AI 分析中，请稍候...</p></div>';
+        evaluationSection.style.display = 'block';
+        evaluationSection.scrollIntoView({ behavior: 'smooth' });
+
+        fetch('/evaluate-code', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code: code})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                evaluationContent.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${escapeHtml(data.error)}</div>`;
+            } else {
+                evaluationContent.innerHTML = formatEvaluation(data.evaluation);
+            }
+        })
+        .catch(error => {
+            console.error('错误:', error);
+            evaluationContent.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> AI 评审失败，请检查网络连接和 API 配置。</div>';
+        });
+    });
+
+    // 关闭评审结果
+    closeEvaluationBtn.addEventListener('click', function() {
+        evaluationSection.style.display = 'none';
+    });
+
+    function formatEvaluation(text) {
+        // 简单的 Markdown 格式化
+        let html = escapeHtml(text);
+        // 标题
+        html = html.replace(/### (.*)/g, '<h5 class="text-primary mt-3">$1</h5>');
+        html = html.replace(/## (.*)/g, '<h4 class="text-success mt-4">$1</h4>');
+        html = html.replace(/# (.*)/g, '<h3 class="mt-4">$1</h3>');
+        // 粗体
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // 行内代码
+        html = html.replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>');
+        // 代码块
+        html = html.replace(/```python\n([\s\S]*?)```/g, '<pre class="bg-dark text-light p-3 rounded my-2"><code>$1</code></pre>');
+        html = html.replace(/```\n([\s\S]*?)```/g, '<pre class="bg-dark text-light p-3 rounded my-2"><code>$1</code></pre>');
+        // 换行
+        html = html.replace(/\n/g, '<br>');
+        return html;
+    }
+
+    clearCodeBtn.addEventListener('click', function() {
+        executionOutput.innerHTML = '# 输出已清空';
+        evaluationSection.style.display = 'none';
+    });
+
+    openFileBtn.addEventListener('click', function() { fileInput.click(); });
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            if (codeEditor) {
+                codeEditor.setValue(e.target.result);
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    downloadCodeBtn.addEventListener('click', function() {
+        const code = codeEditor.getValue();
+        if (!code.trim()) {
+            alert('编辑器为空，无可下载内容。');
+            return;
+        }
+        const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'python_code.py';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 快捷键
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            runCodeBtn.click();
+        }
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            downloadCodeBtn.click();
+        }
+        if (e.ctrlKey && e.key === 'o') {
+            e.preventDefault();
+            openFileBtn.click();
+        }
+    });
+</script>
+{% endblock %}
