@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ student_name }} - {{ problem.title }} - 通过代码 - 在线Python编辑器</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/default.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .sidebar { min-height: 100vh; }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; z-index: 1055; width: 250px; }
+            .main-content { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- 移动端顶部导航 -->
+            <nav class="navbar navbar-expand-md navbar-dark bg-dark d-md-none fixed-top">
+                <div class="container-fluid">
+                    <a class="navbar-brand" href="{{ url_for('teacher_dashboard') }}">教师管理</a>
+                    <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarCanvas">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
+            </nav>
+
+            <!-- 侧边栏 -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse bg-light offcanvas-md offcanvas-start" id="sidebarCanvas">
+                <div class="offcanvas-header d-md-none">
+                    <h5 class="offcanvas-title">教师管理</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarCanvas"></button>
+                </div>
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('teacher_dashboard') }}">
+                                <i class="bi bi-layout-dashboard"></i> 仪表盘
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('teacher_problems') }}">
+                                <i class="bi bi-book-open"></i> 题库管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('teacher_stats') }}">
+                                <i class="bi bi-bar-chart"></i> 答题统计
+                            </a>
+                        </li>
+                    </ul>
+                    <hr class="my-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link text-danger" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right"></i> 退出登录
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- 主内容区 -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <div>
+                        <h1 class="h2">{{ problem.title }}</h1>
+                        <a href="{{ url_for('problem_stats_detail', problem_id=problem.id) }}" class="btn btn-dark border border-black"><i class="bi bi-arrow-left"></i> 返回题目统计</a>
+                    </div>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <span class="text-muted">{{ session['username'] }}</span>
+                    </div>
+                </div>
+
+                <!-- 学生信息 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h4><i class="bi bi-person"></i> {{ student_name }}</h4>
+                                <p class="text-muted">通过时间: {{ passed_at }}</p>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <span class="badge bg-success">已通过</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 代码展示 -->
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0"><i class="bi bi-code-slash"></i> 通过代码</h5>
+                    </div>
+                    <div class="card-body">
+                        <textarea id="codeTextarea" style="display: none;">{{ passed_code }}</textarea>
+                        <div id="codeEditor" style="height: 500px;"></div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
+    <script>
+        var codeTextarea = document.getElementById('codeTextarea');
+        var codeEditor = CodeMirror.fromTextArea(codeTextarea, {
+            mode: 'python',
+            theme: 'default',
+            lineNumbers: true,
+            readOnly: true,
+            lineWrapping: true,
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false
+        });
+        codeEditor.setSize('100%', '500px');
+    </script>
+</body>
+</html>
