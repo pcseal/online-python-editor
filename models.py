@@ -640,9 +640,24 @@ def set_registration_enabled(enabled):
     """设置注册开关状态"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('UPDATE config SET value = ? WHERE key = "registration_enabled"', ('1' if enabled else '0',))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute('UPDATE config SET value = ? WHERE key = "registration_enabled"', ('1' if enabled else '0',))
+        conn.commit()
+    except sqlite3.OperationalError:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('INSERT OR IGNORE INTO config (key, value) VALUES ("registration_enabled", "1")')
+        cursor.execute('UPDATE config SET value = ? WHERE key = "registration_enabled"', ('1' if enabled else '0',))
+        conn.commit()
+    finally:
+        conn.close()
 
 def delete_student_data(grade='', class_number=''):
     """删除学生答题数据（保留账号）"""
