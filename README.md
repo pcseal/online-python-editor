@@ -1,149 +1,211 @@
-# Générateur d'Exercices Python avec IA et GED
+# Online Python Editor
 
-Une application web interactive pour générer des exercices de programmation Python personnalisés pour les élèves de collège et lycée, avec évaluation automatique du code par intelligence artificielle et gestion électronique de documents (GED).
+An interactive web application for teaching and learning Python programming, with automatic code evaluation and comprehensive teacher management features.
 
-![Logo du projet](static/logo.jpg)
+<br />
 
-## Présentation
+## 项目简介 / Project Overview
 
-Cette application permet aux enseignants et aux élèves de :
-- Générer des exercices Python adaptés à différents niveaux scolaires (Troisième à Terminale)
-- Exécuter et évaluer du code Python directement dans le navigateur
-- Gérer des documents pédagogiques avec un système de GED
-- Consulter une bibliothèque de cours organisée par thèmes
-- Expérimenter avec un bac à sable Python incluant des bibliothèques scientifiques
+在线Python编辑器是一个面向中学编程教学的Web应用，提供教师和学生两种角色的完整功能。
 
-Pour plus de détails sur les fonctionnalités et les aspects techniques, consultez la [documentation complète](DOCUMENTATION.md).
+The Online Python Editor is a web application designed for secondary school programming education, providing comprehensive features for both teachers and students.
 
-## Installation
+### 主要功能 / Key Features
 
-### Installation automatique (recommandée)
+#### 教师功能 / Teacher Features
 
-#### Windows
-```bash
-git clone https://github.com/estebe2000/exercices-python.git
-cd exercices-python
-install_windows.bat
-```
+- **题库管理** - 创建、编辑、删除编程题目，支持今日题目设置
+- **答题统计** - 查看学生答题情况，支持按班级、分类筛选
+- **代码查看** - 查看学生提交的代码，支持通过代码高亮显示
+- **管理员控制** - 注册开关、数据清理、手动注册学生账号
+- **教师账号管理** - 通过命令行脚本管理教师账号
 
-#### Linux/macOS
-```bash
-git clone https://github.com/estebe2000/exercices-python.git
-cd exercices-python
-chmod +x install_linux.sh
-./install_linux.sh
-```
+#### 学生功能 / Student Features
 
-### Installation manuelle
+- **在线编程** - 实时编写和运行Python代码
+- **答题系统** - 完成指定编程题目，查看通过状态
+- **今日题目** - 查看当日推荐练习题目
+- **代码保存** - 自动保存答题记录和通过代码
 
-1. Clonez ce dépôt :
+### 技术特性 / Technical Features
+
+- 安全的代码沙箱执行环境
+- SQLite数据库存储
+- Bootstrap 5响应式界面
+- 代码语法高亮
+- 支持`input()`交互输入
+- **AI代码评审** - 集成DeepSeek API提供智能代码分析和改进建议
+
+## 安装与运行 / Installation & Run
+
+### 环境要求 / Requirements
+
+- Python 3.8+
+- Windows / Linux / macOS
+
+### 安装步骤 / Installation Steps
+
+1. **克隆项目 / Clone the repository**
    ```bash
-   git clone https://github.com/estebe2000/exercices-python.git
-   cd exercices-python
+   git clone https://github.com/pcseal/online-python-editor.git
+   cd online-python-editor
    ```
-
-2. Créez et activez un environnement virtuel :
+2. **创建虚拟环境 / Create virtual environment**
    ```bash
    python -m venv .venv
-   # Sur Windows
+
+   # Windows
    .venv\Scripts\activate
-   # Sur macOS/Linux
+
+   # macOS/Linux
    source .venv/bin/activate
    ```
-
-3. Installez les dépendances :
+3. **安装依赖 / Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
-
-4. Créez un fichier `.env` avec les variables suivantes :
-   ```
-   FLASK_SECRET_KEY=dev_key_123
-   GEMINI_API_KEY=votre_cle_gemini
-   MISTRAL_API_KEY=votre_cle_mistral
-   ```
-
-5. Initialisez la base de données pour la GED :
-   ```bash
-   flask init-db
-   ```
-
-6. Créez le dossier pour les uploads s'il n'existe pas :
-   ```bash
-   mkdir -p uploads
-   ```
-
-7. Démarrez l'application :
+4. **启动应用 / Start the application**
    ```bash
    python app.py
    ```
+5. **访问应用 / Access the application**
+   - Open your browser and navigate to: <http://127.0.0.1:8082>
 
-8. Ouvrez votre navigateur à l'adresse : http://127.0.0.1:5000
+### Windows快捷启动 / Windows Quick Start
+```bash
+start.bat
+```
 
-## Dépannage
+### 环境变量配置 / Environment Variables
 
-### Erreur "Internal Server Error" dans la GED
+创建 `.env` 文件配置AI服务（可选）：
 
-Si vous rencontrez une erreur lors de l'accès à la GED :
+```env
+# AI API Key（配置后启用AI代码评审功能）
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
 
-1. Assurez-vous que la base de données a été initialisée :
-   ```bash
-   flask init-db
-   ```
+# 或使用 OpenAI 兼容接口
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-3.5-turbo
 
-2. Vérifiez que le dossier `uploads` existe :
-   ```bash
-   mkdir -p uploads
-   ```
+# Flask 密钥（用于会话管理）
+FLASK_SECRET_KEY=dev_key_123
+```
 
-3. Vérifiez les permissions des dossiers `instance` et `uploads`.
+**AI功能说明**：
+- 配置API Key后，学生可以使用"AI分析"功能获得代码评审和改进建议
+- AI分析有30秒冷却时间，防止滥用
+- 支持DeepSeek和OpenAI兼容接口
+- 不配置API Key不影响系统核心功能
 
-### Problèmes avec les modèles d'IA
+## 默认账号 / Default Accounts
 
-1. Pour LocalAI : vérifiez que votre instance LocalAI est en cours d'exécution.
+### 教师账号 / Teacher Accounts
 
-2. Pour Gemini/Mistral : vérifiez que vos clés API sont correctement configurées dans le fichier `.env`.
+系统初始化时会自动创建10个教师账号：
 
-3. Consultez les logs dans le dossier `logs/` pour plus de détails sur les erreurs.
+| 用户名       | 密码              |
+| --------- | --------------- |
+| teacher1  | teacher1\@2024  |
+| teacher2  | teacher2\@2024  |
+| ...       | ...             |
+| teacher10 | teacher10\@2024 |
 
-## TODO
+### 学生注册 / Student Registration
 
-### Fonctionnalités implémentées ✅
-- [x] Interface utilisateur avec fenêtre de bienvenue et aide contextuelle
-- [x] Générateur d'exercices Python avec différents niveaux de difficulté
-- [x] Mode débutant pour les niveaux Troisième, SNT et Prépa NSI
-- [x] Éditeur de code intégré avec coloration syntaxique
-- [x] Exécution de code en temps réel avec sandbox sécurisé
-- [x] Support de la fonction `input()` pour les exercices interactifs
-- [x] Évaluation automatique du code par IA
-- [x] Triple moteur d'IA (LocalAI, Gemini, Mistral)
-- [x] Export des exercices au format notebook Jupyter
-- [x] Gestion Électronique de Documents (GED)
-- [x] Bibliothèque de cours en style visuel
-- [x] Bac à sable Python avec modules scientifiques préchargés
-- [x] Thème clair/sombre avec détection automatique des préférences système
+学生可以通过注册页面自行注册账号，需选择年段和班级。
 
-### Prochaines fonctionnalités 🚀
-- [ ] Authentification et gestion des utilisateurs
-- [ ] Système de suivi de progression pour les élèves
-- [ ] Intégration avec les ENT (Environnements Numériques de Travail)
-- [ ] Support de p5.js pour les exercices graphiques
-- [ ] Support de Turtle pour l'apprentissage visuel
-- [ ] RAG (Retrieval Augmented Generation) pour la génération de cours
+## 教师账号管理脚本 / Teacher Management Script
 
-### Améliorations techniques 🔧
-- [ ] Optimisation des performances pour les grands fichiers
-- [ ] Tests unitaires et d'intégration
-- [ ] Documentation API pour les développeurs
-- [ ] Support Docker pour faciliter le déploiement
+提供命令行脚本管理教师账号：
 
-## Crédits
+```bash
+# 列出所有教师
+python manage_teachers.py list
 
-- D'après une idée originale de [David Roche](https://www.linkedin.com/in/david-roche-34b9a024a/)
-- Développé pour l'Éducation Nationale
-- Utilise [LocalAI](https://localai.io/), [Gemini API](https://ai.google.dev/) et [Mistral API](https://mistral.ai/)
-- Interface basée sur Bootstrap et CodeMirror
+# 添加新教师
+python manage_teachers.py add
 
-## Licence
+# 修改教师信息
+python manage_teachers.py modify
 
-Ce projet est sous licence [MIT](LICENSE).
+# 删除教师账号
+python manage_teachers.py delete
+
+# 显示帮助
+python manage_teachers.py help
+```
+
+## 项目结构 / Project Structure
+
+```
+online-python-editor/
+├── app.py              # Flask应用主入口
+├── models.py           # 数据库模型和操作
+├── code_execution.py   # 代码执行逻辑
+├── code_sandbox.py     # 代码沙箱环境
+├── manage_teachers.py  # 教师账号管理脚本
+├── requirements.txt    # Python依赖
+├── start.bat           # Windows启动脚本
+├── static/             # 静态资源
+│   ├── logo.jpg
+│   └── style.css
+└── templates/          # HTML模板
+    ├── login.html      # 登录页面
+    ├── register.html   # 注册页面
+    ├── sandbox.html    # Python沙箱页面
+    ├── student/        # 学生端页面
+    └── teacher/        # 教师端页面
+```
+
+## 使用说明 / Usage
+
+### 教师使用流程 / Teacher Workflow
+
+1. 登录教师账号
+2. 在"题库管理"中创建或编辑题目
+3. 设置"今日题目"供学生练习
+4. 在"答题统计"中查看学生答题情况
+5. 使用"管理员控制"管理系统配置
+
+### 学生使用流程 / Student Workflow
+
+1. 注册并登录学生账号
+2. 在"今日题目"中查看当天练习
+3. 在答题页面编写并运行代码
+4. 通过题目后系统自动保存代码
+
+## 配置说明 / Configuration
+
+### 数据库 / Database
+
+项目使用SQLite数据库，数据库文件位于 `database.db`。
+
+首次启动时会自动创建数据库表和示例数据。
+
+### 注册开关 / Registration Toggle
+
+管理员可以通过"管理员控制"页面开启或关闭学生注册功能。
+
+## 技术栈 / Tech Stack
+
+- **后端**: Python 3, Flask
+- **前端**: HTML5, CSS3, JavaScript, Bootstrap 5
+- **数据库**: SQLite 3
+- **代码编辑器**: Ace Editor
+- **图标**: Bootstrap Icons
+
+## 许可证 / License
+
+MIT License
+
+## 贡献 / Contributing
+
+欢迎提交Issue和Pull Request！
+
+## 联系方式 / Contact
+
+项目地址: <https://github.com/pcseal/online-python-editor>
