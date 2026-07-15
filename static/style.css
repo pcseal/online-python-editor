@@ -636,6 +636,7 @@ input[type="checkbox"]:checked {
     .sidebar {
         border-right: none;
         border-bottom: 4px solid var(--giga-border);
+        z-index: 1055 !important;
     }
 
     .navbar {

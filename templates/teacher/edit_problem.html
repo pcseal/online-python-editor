@@ -11,7 +11,7 @@
         .sidebar { min-height: 100vh; }
         textarea { font-family: monospace; }
         @media (max-width: 768px) {
-            .sidebar { position: fixed; z-index: 1000; width: 250px; }
+            .sidebar { position: fixed; z-index: 1055; width: 250px; }
             .main-content { margin-left: 0; }
         }
     </style>
@@ -50,6 +50,11 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('teacher_stats') }}">
                                 <i class="bi bi-bar-chart"></i> 答题统计
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_control') }}">
+                                <i class="bi bi-shield"></i> 管理员控制
                             </a>
                         </li>
                     </ul>

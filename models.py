@@ -81,6 +81,20 @@ def init_db():
     except sqlite3.OperationalError:
         pass  # 字段已存在
 
+    # 系统配置表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT UNIQUE NOT NULL,
+            value TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # 初始化注册开关配置（默认开放注册）
+    cursor.execute('INSERT OR IGNORE INTO config (key, value) VALUES ("registration_enabled", "1")')
+
     # 用户答题统计视图（用于快速查询）
     cursor.execute('DROP VIEW IF EXISTS user_problem_stats')
     cursor.execute('''
@@ -93,6 +107,11 @@ def init_db():
             SUM(ai_count) as total_ai_uses,
             MAX(is_passed) as ever_passed,
             MAX(submitted_at) as last_submission,
+            (SELECT submitted_at FROM submissions s2 
+             WHERE s2.user_id = submissions.user_id 
+             AND s2.problem_id = submissions.problem_id 
+             AND s2.is_passed = 1 
+             ORDER BY s2.submitted_at DESC LIMIT 1) as passed_at,
             (SELECT passed_code FROM submissions s2 
              WHERE s2.user_id = submissions.user_id 
              AND s2.problem_id = submissions.problem_id 
@@ -451,13 +470,45 @@ def get_problem_stats(problem_id, grade='', class_number=''):
         }
     return {'total_students': 0, 'passed_students': 0, 'pass_rate': 0, 'total_runs': 0, 'total_ai_uses': 0}
 
+def get_single_student_stats(problem_id, user_id):
+    """获取单个学生某题的答题详情"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT u.id, u.name, c.grade, c.class_number, s.total_runs, s.total_ai_uses, s.ever_passed, s.passed_at, s.passed_code
+        FROM user_problem_stats s
+        JOIN users u ON s.user_id = u.id
+        LEFT JOIN classes c ON u.class_id = c.id
+        WHERE s.problem_id = ? AND s.user_id = ? AND u.role = 'student'
+    '''
+    
+    cursor.execute(query, (problem_id, user_id))
+    result = cursor.fetchone()
+    conn.close()
+    
+    if result:
+        return {
+            'user_id': result[0],
+            'name': result[1],
+            'grade': result[2],
+            'class_number': result[3],
+            'class_display': f"{result[2]}{result[3]}班" if result[2] and result[3] else '未知',
+            'total_runs': result[4],
+            'total_ai_uses': result[5],
+            'ever_passed': bool(result[6]),
+            'passed_at': result[7],
+            'passed_code': result[8]
+        }
+    return None
+
 def get_all_student_stats(problem_id, grade='', class_number=''):
     """获取某题所有学生的答题详情（支持班级筛选）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     query = '''
-        SELECT u.id, u.name, c.grade, c.class_number, s.total_runs, s.total_ai_uses, s.ever_passed, s.last_submission, s.passed_code
+        SELECT u.id, u.name, c.grade, c.class_number, s.total_runs, s.total_ai_uses, s.ever_passed, s.passed_at, s.passed_code
         FROM user_problem_stats s
         JOIN users u ON s.user_id = u.id
         LEFT JOIN classes c ON u.class_id = c.id
@@ -486,7 +537,7 @@ def get_all_student_stats(problem_id, grade='', class_number=''):
         'total_runs': r[4],
         'total_ai_uses': r[5],
         'ever_passed': bool(r[6]),
-        'last_submission': r[7],
+        'passed_at': r[7],
         'passed_code': r[8]
     } for r in results]
 
@@ -499,6 +550,149 @@ def delete_problem(problem_id):
     affected = cursor.rowcount
     conn.close()
     return affected > 0
+
+def get_all_grades():
+    """获取所有年级"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT grade FROM classes ORDER BY grade')
+    results = cursor.fetchall()
+    conn.close()
+    return [r[0] for r in results if r[0]]
+
+def get_all_class_numbers():
+    """获取所有班级编号"""
+    return [str(i) for i in range(1, 21)]
+
+def get_total_students():
+    """获取学生总数"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM users WHERE role = ?', ('student',))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else 0
+
+def get_all_student_overall_stats(grade='', class_number=''):
+    """获取所有学生的总体统计（支持班级筛选）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    query = '''
+        SELECT u.id, u.name, 
+               COUNT(DISTINCT ups.problem_id) as attempted_problems,
+               SUM(CASE WHEN ups.ever_passed = 1 THEN 1 ELSE 0 END) as passed_problems,
+               SUM(ups.total_runs) as total_runs,
+               SUM(ups.total_ai_uses) as total_ai_uses
+        FROM users u
+        LEFT JOIN user_problem_stats ups ON u.id = ups.user_id
+        LEFT JOIN classes c ON u.class_id = c.id
+        WHERE u.role = 'student'
+    '''
+    params = []
+    
+    if grade:
+        query += ' AND c.grade = ?'
+        params.append(grade)
+    if class_number:
+        query += ' AND c.class_number = ?'
+        params.append(class_number)
+    
+    query += ' GROUP BY u.id, u.name ORDER BY u.name'
+    
+    cursor.execute(query, params)
+    results = cursor.fetchall()
+    conn.close()
+    return [{
+        'user_id': r[0],
+        'name': r[1],
+        'attempted_problems': r[2] if r[2] else 0,
+        'passed_problems': r[3] if r[3] else 0,
+        'total_runs': r[4] if r[4] else 0,
+        'total_ai_uses': r[5] if r[5] else 0
+    } for r in results]
+
+def get_registration_enabled():
+    """获取注册开关状态"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM config WHERE key = "registration_enabled"')
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] == '1' if result else True
+
+def set_registration_enabled(enabled):
+    """设置注册开关状态"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE config SET value = ? WHERE key = "registration_enabled"', ('1' if enabled else '0',))
+    conn.commit()
+    conn.close()
+
+def delete_student_data(grade='', class_number=''):
+    """删除学生答题数据（保留账号）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    query = 'SELECT id FROM users WHERE role = "student"'
+    params = []
+    
+    if grade:
+        query += ' AND class_id IN (SELECT id FROM classes WHERE grade = ?)'
+        params.append(grade)
+    if class_number:
+        if grade:
+            query += ' AND class_id IN (SELECT id FROM classes WHERE grade = ? AND class_number = ?)'
+            params.append(grade)
+            params.append(class_number)
+        else:
+            query += ' AND class_id IN (SELECT id FROM classes WHERE class_number = ?)'
+            params.append(class_number)
+    
+    cursor.execute(query, params)
+    user_ids = [str(r[0]) for r in cursor.fetchall()]
+    
+    if user_ids:
+        placeholders = ','.join('?' * len(user_ids))
+        cursor.execute(f'DELETE FROM submissions WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM user_problem_stats WHERE user_id IN ({placeholders})', user_ids)
+    
+    conn.commit()
+    conn.close()
+    return len(user_ids)
+
+def delete_student_accounts(grade='', class_number=''):
+    """删除学生账号及所有数据"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    query = 'SELECT id FROM users WHERE role = "student"'
+    params = []
+    
+    if grade:
+        query += ' AND class_id IN (SELECT id FROM classes WHERE grade = ?)'
+        params.append(grade)
+    if class_number:
+        if grade:
+            query += ' AND class_id IN (SELECT id FROM classes WHERE grade = ? AND class_number = ?)'
+            params.append(grade)
+            params.append(class_number)
+        else:
+            query += ' AND class_id IN (SELECT id FROM classes WHERE class_number = ?)'
+            params.append(class_number)
+    
+    cursor.execute(query, params)
+    user_ids = [str(r[0]) for r in cursor.fetchall()]
+    
+    if user_ids:
+        placeholders = ','.join('?' * len(user_ids))
+        cursor.execute(f'DELETE FROM submissions WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM user_problem_stats WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM users WHERE id IN ({placeholders})', user_ids)
+    
+    conn.commit()
+    conn.close()
+    return len(user_ids)
 
 # 初始化示例数据
 def init_sample_data():

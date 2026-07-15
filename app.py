@@ -146,6 +146,9 @@ def register():
     if is_logged_in():
         return redirect(url_for('index'))
     
+    if not models.get_registration_enabled():
+        return render_template('register.html', error='注册功能已关闭，请联系管理员')
+    
     error = ''
     
     if request.method == 'POST':
@@ -348,27 +351,54 @@ def teacher_stats():
     # 获取筛选参数
     grade = request.args.get('grade', '')
     class_number = request.args.get('class_number', '')
+    category = request.args.get('category', '')
     
-    today_problems = models.get_today_problems()
     all_problems = models.get_all_problems()
+    
+    # 按分类筛选题目
+    if category:
+        all_problems = [p for p in all_problems if p['category'] == category]
     
     # 获取每个题目的统计数据（支持班级筛选）
     problem_stats = []
     for problem in all_problems:
         stats = models.get_problem_stats(problem['id'], grade=grade, class_number=class_number)
         problem_stats.append({
-            'problem': problem,
-            'stats': stats
+            'id': problem['id'],
+            'title': problem['title'],
+            'category': problem['category'],
+            'is_today': problem['is_today'],
+            'attempt_count': stats['total_students'],
+            'pass_count': stats['passed_students'],
+            'total_runs': stats['total_runs'],
+            'total_ai_uses': stats['total_ai_uses']
         })
     
-    # 按是否今日题目排序
-    problem_stats.sort(key=lambda x: -x['problem']['is_today'])
+    # 按是否今日题目排序（今日题目置顶）
+    problem_stats.sort(key=lambda x: -x['is_today'])
+    
+    # 计算总体统计数据
+    overall_stats = {
+        'total_students': models.get_total_students(),
+        'total_problems': len(all_problems),
+        'total_runs': sum(p['total_runs'] for p in problem_stats),
+        'total_ai_uses': sum(p['total_ai_uses'] for p in problem_stats)
+    }
+    
+    # 获取学生统计数据
+    student_stats = models.get_all_student_overall_stats(grade=grade, class_number=class_number)
+    
+    # 获取所有分类用于筛选
+    categories = models.get_all_categories()
     
     return render_template('teacher/stats.html', 
-                          today_problems=today_problems, 
                           problem_stats=problem_stats,
+                          overall_stats=overall_stats,
+                          student_stats=student_stats,
                           grade=grade,
-                          class_number=class_number)
+                          class_number=class_number,
+                          category=category,
+                          categories=categories)
 
 @app.route('/teacher/stats/problem/<int:problem_id>')
 @teacher_required
@@ -384,12 +414,102 @@ def problem_stats_detail(problem_id):
     stats = models.get_problem_stats(problem_id, grade=grade, class_number=class_number)
     student_stats = models.get_all_student_stats(problem_id, grade=grade, class_number=class_number)
     
+    grades = models.get_all_grades()
+    class_numbers = models.get_all_class_numbers()
+    
     return render_template('teacher/problem_stats.html', 
                           problem=problem, 
                           stats=stats, 
                           student_stats=student_stats,
                           grade=grade,
-                          class_number=class_number)
+                          class_number=class_number,
+                          grades=grades,
+                          class_numbers=class_numbers)
+
+@app.route('/teacher/stats/problem/<int:problem_id>/code/<int:user_id>')
+@teacher_required
+def view_student_code(problem_id, user_id):
+    """查看学生通过的代码"""
+    problem = models.get_problem_by_id(problem_id)
+    if not problem:
+        return '题目不存在', 404
+    
+    student = models.get_single_student_stats(problem_id, user_id)
+    
+    if not student or not student['ever_passed']:
+        return '学生未通过该题目', 404
+    
+    return render_template('teacher/view_student_code.html',
+                          problem=problem,
+                          student_name=student['name'],
+                          passed_code=student['passed_code'],
+                          passed_at=student.get('passed_at', ''))
+
+@app.route('/teacher/admin', methods=['GET', 'POST'])
+@teacher_required
+def admin_control():
+    """管理员控制面板"""
+    message = ''
+    message_type = 'success'
+    
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+        
+        if action == 'toggle_registration':
+            current = models.get_registration_enabled()
+            models.set_registration_enabled(not current)
+            message = '注册功能已{}'.format('关闭' if current else '开放')
+            message_type = 'success'
+        
+        elif action == 'manual_register':
+            username = request.form.get('username', '')
+            name = request.form.get('name', '')
+            password = request.form.get('password', '')
+            grade = request.form.get('grade', '')
+            class_number = request.form.get('class_number', '')
+            
+            if not username or not name or not password or not grade or not class_number:
+                message = '请填写完整信息'
+                message_type = 'danger'
+            elif len(password) < 6:
+                message = '密码至少6位'
+                message_type = 'danger'
+            else:
+                class_id = models.get_or_create_class(grade, class_number)
+                user_id = models.add_student(username, password, name, class_id)
+                if user_id:
+                    message = f'学生 {name} 注册成功'
+                    message_type = 'success'
+                else:
+                    message = '用户名已存在'
+                    message_type = 'danger'
+        
+        elif action == 'delete_data':
+            delete_scope = request.form.get('delete_scope', 'all')
+            delete_content = request.form.get('delete_content', 'data')
+            grade = request.form.get('grade', '')
+            class_number = request.form.get('class_number', '')
+            
+            if delete_scope == 'class' and not grade:
+                message = '按班级删除时必须选择年段'
+                message_type = 'danger'
+            else:
+                if delete_content == 'data':
+                    count = models.delete_student_data(grade, class_number)
+                    message = f'已删除 {count} 名学生的答题数据'
+                else:
+                    count = models.delete_student_accounts(grade, class_number)
+                    message = f'已删除 {count} 名学生的账号及所有数据'
+                message_type = 'success'
+    
+    registration_enabled = models.get_registration_enabled()
+    grades = models.get_all_grades()
+    
+    return render_template('teacher/admin_control.html',
+                          registration_enabled=registration_enabled,
+                          grades=grades,
+                          message=message,
+                          message_type=message_type)
 
 # ------------------------------
 # 学生页面
@@ -589,6 +709,8 @@ def api_evaluate_code():
 {full_code}
 ```
 
+重要说明：学生代码中的 ①②③④⑤⑥⑦⑧⑨⑩ 等带圈数字符号是填空占位符，表示学生尚未填写的位置，不代表学生实际编写的代码。请据此理解学生的完成进度，针对已填写的部分进行分析。
+
 学生的代码：
 ```python
 {student_code}
@@ -631,6 +753,8 @@ def api_evaluate_code():
 你是一位有耐心的Python编程老师，专门指导基础薄弱的学生。
 
 重要说明：这是一次性的单向分析，你只需要输出分析内容，学生无法回复你的问题或继续对话。
+
+特别注意：学生代码中可能包含 ①②③④⑤⑥⑦⑧⑨⑩ 等带圈数字符号，这些是填空占位符，表示学生尚未填写的位置，不代表学生实际编写的代码。
 
 你的教学原则：
 1. 绝对不给出直接答案或完整代码
@@ -737,5 +861,5 @@ if __name__ == '__main__':
     models.init_db()
     models.init_sample_data()
     
-    print('启动 Flask 应用: http://127.0.0.1:5000')
-    app.run(debug=False, host='0.0.0.0', port=8088)
+    print('启动 Flask 应用: http://127.0.0.1:8085')
+    app.run(debug=False, host='0.0.0.0', port=8080)

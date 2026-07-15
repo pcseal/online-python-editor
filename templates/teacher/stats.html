@@ -10,7 +10,7 @@
     <style>
         .sidebar { min-height: 100vh; }
         @media (max-width: 768px) {
-            .sidebar { position: fixed; z-index: 1000; width: 250px; }
+            .sidebar { position: fixed; z-index: 1055; width: 250px; }
             .main-content { margin-left: 0; }
         }
     </style>
@@ -51,6 +51,11 @@
                                 <i class="bi bi-bar-chart"></i> 答题统计
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_control') }}">
+                                <i class="bi bi-shield"></i> 管理员控制
+                            </a>
+                        </li>
                     </ul>
                     <hr class="my-3">
                     <ul class="nav flex-column">
@@ -68,7 +73,7 @@
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">答题统计</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
-                        <span class="text-muted">欢迎, {{ session['name'] }}</span>
+                        <span class="text-muted">{{ session['username'] }}</span>
                     </div>
                 </div>
 
@@ -100,6 +105,27 @@
                     </div>
                 </div>
 
+                <!-- 筛选表单 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <form method="get" class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">分类</label>
+                                <select class="form-control border border-black" name="category">
+                                    <option value="" {% if not category %}selected{% endif %}>全部分类</option>
+                                    {% for c in categories %}
+                                    <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="submit" class="btn btn-dark border border-black w-full">筛选</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- 题目统计列表 -->
                 <div class="card">
                     <div class="card-header bg-dark text-white">
@@ -121,8 +147,13 @@
                                 </thead>
                                 <tbody>
                                     {% for stat in problem_stats %}
-                                    <tr>
-                                        <td>{{ stat.title }}</td>
+                                    <tr {% if stat.is_today %}class="table-info"{% endif %}>
+                                        <td>
+                                            {% if stat.is_today %}
+                                            <span class="badge bg-success me-2">今日</span>
+                                            {% endif %}
+                                            {{ stat.title }}
+                                        </td>
                                         <td><span class="badge bg-secondary">{{ stat.category }}</span></td>
                                         <td>{{ stat.attempt_count }}</td>
                                         <td>{{ stat.pass_count }}</td>
@@ -135,7 +166,7 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <a href="{{ url_for('problem_stats', problem_id=stat.id) }}" class="btn btn-sm btn-primary">详情</a>
+                                            <a href="{{ url_for('problem_stats_detail', problem_id=stat.id) }}" class="btn btn-sm btn-primary">详情</a>
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -146,46 +177,6 @@
                         <div class="text-center py-8">
                             <i class="bi bi-bar-chart-x text-gray-400 text-4xl mb-3"></i>
                             <p class="text-gray-500">暂无统计数据</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <!-- 学生统计列表 -->
-                <div class="card mt-4">
-                    <div class="card-header bg-dark text-white">
-                        <h5 class="mb-0"><i class="bi bi-people"></i> 学生统计</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if student_stats %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>学生姓名</th>
-                                        <th>尝试题目数</th>
-                                        <th>通过题目数</th>
-                                        <th>运行次数</th>
-                                        <th>AI分析次数</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for stat in student_stats %}
-                                    <tr>
-                                        <td>{{ stat.name }}</td>
-                                        <td>{{ stat.attempted_problems }}</td>
-                                        <td>{{ stat.passed_problems }}</td>
-                                        <td>{{ stat.total_runs }}</td>
-                                        <td>{{ stat.total_ai_uses }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% else %}
-                        <div class="text-center py-8">
-                            <i class="bi bi-users text-gray-400 text-4xl mb-3"></i>
-                            <p class="text-gray-500">暂无学生数据</p>
                         </div>
                         {% endif %}
                     </div>
