@@ -616,10 +616,25 @@ def get_registration_enabled():
     """获取注册开关状态"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('SELECT value FROM config WHERE key = "registration_enabled"')
-    result = cursor.fetchone()
-    conn.close()
-    return result[0] == '1' if result else True
+    try:
+        cursor.execute('SELECT value FROM config WHERE key = "registration_enabled"')
+        result = cursor.fetchone()
+        return result[0] == '1' if result else True
+    except sqlite3.OperationalError:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('INSERT OR IGNORE INTO config (key, value) VALUES ("registration_enabled", "1")')
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 def set_registration_enabled(enabled):
     """设置注册开关状态"""
