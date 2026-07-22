@@ -53,6 +53,11 @@
                                 <i class="bi bi-book-open"></i> 题库
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
+                                <i class="bi bi-trophy"></i> 排行榜
+                            </a>
+                        </li>
                     </ul>
                     <hr class="my-3">
                     <ul class="nav flex-column">
@@ -152,27 +157,32 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="stats-card">
                                     <div class="stat-value" id="total-runs">{{ user_stats.total_runs }}</div>
                                     <div class="stat-label">运行次数</div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="stats-card">
                                     <div class="stat-value" id="ai-count">{{ user_stats.total_ai_uses }}</div>
                                     <div class="stat-label">AI分析次数</div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="stats-card">
                                     <div class="stat-value" id="pass-status">{{ '已通过' if user_stats.ever_passed else '未通过' }}</div>
                                     <div class="stat-label">答题状态</div>
                                 </div>
                             </div>
+                            <div class="col-md-3">
+                                <div class="stats-card">
+                                    <div class="stat-value" id="user-points">0</div>
+                                    <div class="stat-label">当前积分</div>
+                                </div>
+                            </div>
                         </div>
-                        {% if user_stats.passed_code %}
-                        <div class="mt-3">
+                        <div class="mt-3" id="passed-code-section" style="{% if user_stats.passed_code %}display:block{% else %}display:none{% endif %}">
                             <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#passedCodeCollapse">
                                 <i class="bi bi-code-slash"></i> 查看我通过的代码
                             </button>
@@ -183,7 +193,12 @@
                                 </div>
                             </div>
                         </div>
-                        {% endif %}
+                        <div class="mt-3" id="reward-section">
+                            <button id="claim-reward-btn" class="btn btn-success" disabled>
+                                <i class="bi bi-gift"></i> 领取奖励
+                            </button>
+                            <span id="reward-status" class="text-muted ml-2"></span>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -205,6 +220,42 @@
                     <button type="button" class="btn btn-primary" id="submit-input">确定</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 宝箱游戏弹窗 -->
+    <div class="modal fade" id="chestModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-gem"></i> 领取奖励</h5>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="chest-wrapper" id="chestWrapper">
+                        <div id="chestContainer">
+                            <div id="chestSvgContainer"></div>
+                            <div class="light-rays" id="lightRays"></div>
+                        </div>
+                    </div>
+                    <div class="click-indicator" id="clickIndicator">
+                        <div class="click-dot" data-i="0"></div>
+                        <div class="click-dot" data-i="1"></div>
+                        <div class="click-dot" data-i="2"></div>
+                    </div>
+                    <div class="hint" id="hintText">▣ 点击宝箱 <strong>3</strong> 次开启</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 奖励弹窗 -->
+    <div class="reward-overlay" id="rewardOverlay">
+        <div class="reward-card">
+            <div class="reward-icon" id="rewardIcon">◆</div>
+            <div class="reward-title" id="rewardTitle">获得积分</div>
+            <div class="reward-points" id="rewardPoints">+1 <span class="pts">分</span></div>
+            <div class="reward-sub" id="rewardSub">宝箱已关闭</div>
+            <button class="btn btn-primary" id="closeRewardBtn">确定</button>
         </div>
     </div>
 
@@ -406,19 +457,26 @@
                     fillable_answers: getFillableAnswers()
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('响应状态:', response.status);
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('响应数据:', data);
                 let outputText = data.output || '';
                 let errorText = data.error || '';
                 
                 // 显示输出
                 let displayText = '';
-                if (errorText) {
+                if (errorText && !data.is_passed) {
                     displayText += `<pre class="text-danger bg-light p-3 rounded mb-2">${escapeHtml(errorText)}</pre>`;
                 }
                 if (outputText) {
                     displayText += `<pre class="text-success bg-light p-3 rounded">${escapeHtml(outputText)}</pre>`;
-                } else if (!errorText) {
+                } else if (!errorText || data.is_passed) {
                     displayText += '<pre class="text-gray-500 bg-light p-3 rounded">无输出</pre>';
                 }
                 output.innerHTML = displayText;
@@ -444,10 +502,19 @@
                         document.getElementById('pass-status').textContent = data.user_stats.ever_passed ? '已通过' : '未通过';
                     }
                     
+                    if (data.is_passed) {
+                        checkRewardStatus();
+                        if (data.passed_code) {
+                            document.getElementById('passedCodeTextarea').value = data.passed_code;
+                            document.getElementById('passed-code-section').style.display = 'block';
+                        }
+                    }
+                    
                     updateCooldown();
                 })
                 .catch(error => {
-                    output.innerHTML = '<span class="text-danger">执行失败</span>';
+                    console.error('执行错误:', error);
+                    output.innerHTML = `<span class="text-danger">执行失败: ${error.message || '未知错误'}</span>`;
                 })
                 .finally(() => {
                     isRunning = false;
@@ -551,6 +618,482 @@
             .then(data => {
                 // 继续检查执行状态
             });
+        });
+
+        // ------------------------------
+        // 积分系统和宝箱游戏
+        // ------------------------------
+        let chestState = {
+            level: 'primary',
+            clickCount: 0,
+            isOpening: false,
+            isOpen: false,
+            isEnded: false,
+            score: 0,
+            isProcessing: false,
+        };
+
+        const LEVELS = {
+            primary: {
+                key: 'primary',
+                name: '初级',
+                bodyColor: '#8BA3C7',
+                bodyDark: '#5D7B9F',
+                lidColor: '#A8C4E0',
+                lidDark: '#7A99B9',
+                accentColor: '#C9A87C',
+                lightColor: '#4fc3f7',
+                scoreOnOpen: 1,
+                nextLevel: 'middle',
+                nextProb: 0.5,
+                size: 160,
+            },
+            middle: {
+                key: 'middle',
+                name: '中级',
+                bodyColor: '#A87DC4',
+                bodyDark: '#7B4B9A',
+                lidColor: '#C9A8D8',
+                lidDark: '#9B6DB8',
+                accentColor: '#C9A87C',
+                lightColor: '#ce93d8',
+                scoreOnOpen: 2,
+                nextLevel: 'high',
+                nextProb: 0.5,
+                size: 190,
+            },
+            high: {
+                key: 'high',
+                name: '高级',
+                bodyColor: '#E8CD6A',
+                bodyDark: '#C9A84C',
+                lidColor: '#F5E08A',
+                lidDark: '#D4B854',
+                accentColor: '#E8B84A',
+                lightColor: '#ffd54f',
+                scoreOnOpen: 3,
+                nextLevel: 'top',
+                nextProb: 0.5,
+                size: 220,
+            },
+            top: {
+                key: 'top',
+                name: '顶级',
+                bodyColor: '#58D68D',
+                bodyDark: '#2ECC71',
+                lidColor: '#82E0AA',
+                lidDark: '#3DCB7A',
+                accentColor: '#F4D03F',
+                lightColor: '#81c784',
+                scoreOnOpen: 5,
+                nextLevel: null,
+                nextProb: 0,
+                size: 250,
+            }
+        };
+
+        function updateUserPoints() {
+            fetch('/api/user_points')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('user-points').textContent = data.points || 0;
+                });
+        }
+
+        function checkRewardStatus() {
+            fetch(`/api/check_reward/${problemId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const claimBtn = document.getElementById('claim-reward-btn');
+                    const statusSpan = document.getElementById('reward-status');
+                    
+                    if (data.has_claimed) {
+                        claimBtn.disabled = true;
+                        claimBtn.innerHTML = '<i class="bi bi-check-circle"></i> 已领取';
+                        statusSpan.textContent = `已获得 ${data.reward?.points_earned || 0} 积分`;
+                    } else if (data.can_claim) {
+                        claimBtn.disabled = false;
+                        claimBtn.innerHTML = '<i class="bi bi-gift"></i> 领取奖励';
+                        statusSpan.textContent = '';
+                    } else if (!data.ever_passed) {
+                        claimBtn.disabled = true;
+                        claimBtn.innerHTML = '<i class="bi bi-lock"></i> 未通过';
+                        statusSpan.textContent = '请先通过题目';
+                    }
+                });
+        }
+
+        document.getElementById('claim-reward-btn').addEventListener('click', function() {
+            resetChestGame();
+            const chestModal = new bootstrap.Modal(document.getElementById('chestModal'));
+            chestModal.show();
+        });
+
+        function buildChestSVG(levelKey, isOpen = false, lidAngle = 0) {
+            const cfg = LEVELS[levelKey];
+            const w = 240, h = 240;
+            const cx = w / 2;
+            const bodyX = 35, bodyY = 90, bodyW = 170, bodyH = 100;
+            const lidY = bodyY;
+            const lidH = 50;
+
+            const lidPath = `M ${bodyX},${lidY} Q ${cx},${lidY - lidH - 10} ${bodyX + bodyW},${lidY} L ${bodyX + bodyW - 10},${lidY + 6} Q ${cx},${lidY - lidH + 4} ${bodyX + 10},${lidY + 6} Z`;
+            const lidTransform = isOpen ? `transform="rotate(${lidAngle}, ${cx}, ${lidY})"` : '';
+
+            const lockX = cx - 16, lockY = lidY - 4, lockW = 32, lockH = 20;
+
+            const rivets = `
+                <rect x="${bodyX+8}" y="${bodyY+6}" width="10" height="10" fill="#ffffff" stroke="#000000" stroke-width="2.5" stroke-linejoin="square"/>
+                <rect x="${bodyX+bodyW-18}" y="${bodyY+6}" width="10" height="10" fill="#ffffff" stroke="#000000" stroke-width="2.5" stroke-linejoin="square"/>
+                <rect x="${bodyX+8}" y="${bodyY+bodyH-18}" width="10" height="10" fill="#ffffff" stroke="#000000" stroke-width="2.5" stroke-linejoin="square"/>
+                <rect x="${bodyX+bodyW-18}" y="${bodyY+bodyH-18}" width="10" height="10" fill="#ffffff" stroke="#000000" stroke-width="2.5" stroke-linejoin="square"/>
+            `;
+
+            const lines = `
+                <line x1="${bodyX+14}" y1="${bodyY+28}" x2="${bodyX+bodyW-14}" y2="${bodyY+28}" stroke="#000000" stroke-width="2.5" stroke-linecap="square" opacity="0.4"/>
+                <line x1="${bodyX+14}" y1="${bodyY+50}" x2="${bodyX+bodyW-14}" y2="${bodyY+50}" stroke="#000000" stroke-width="2.5" stroke-linecap="square" opacity="0.4"/>
+                <line x1="${bodyX+14}" y1="${bodyY+72}" x2="${bodyX+bodyW-14}" y2="${bodyY+72}" stroke="#000000" stroke-width="2.5" stroke-linecap="square" opacity="0.4"/>
+            `;
+
+            const topDecor = (levelKey === 'top') ? `
+                <polygon points="${cx},${bodyY-20} ${cx+12},${bodyY-8} ${cx},${bodyY+4} ${cx-12},${bodyY-8}" fill="none" stroke="#2ECC71" stroke-width="3" stroke-linejoin="round"/>
+            ` : '';
+
+            const levelText = `
+                <text x="${cx}" y="${bodyY+bodyH+32}" text-anchor="middle" font-size="18" font-weight="900" fill="#000000" letter-spacing="4">宝箱</text>
+            `;
+
+            return `
+                <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="${bodyX-4}" y="${bodyY+bodyH+6}" width="${bodyW+8}" height="12" fill="#000000" stroke="#000000" stroke-width="3" stroke-linejoin="square" opacity="0.15"/>
+                    <rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" fill="${cfg.bodyColor}" stroke="#000000" stroke-width="4" stroke-linejoin="square"/>
+                    <rect x="${bodyX}" y="${bodyY+bodyH-6}" width="${bodyW}" height="6" fill="${cfg.bodyDark}" stroke="none"/>
+                    ${lines}
+                    ${rivets}
+                    ${topDecor}
+                    <g ${lidTransform} style="transform-origin: ${cx}px ${lidY}px;">
+                        <path d="${lidPath}" fill="${cfg.lidColor}" stroke="#000000" stroke-width="4" stroke-linejoin="round"/>
+                        <path d="M ${bodyX+16},${lidY-6} Q ${cx},${lidY-lidH+8} ${bodyX+bodyW-16},${lidY-6}" fill="none" stroke="#000000" stroke-width="2.5" opacity="0.3" stroke-linecap="square"/>
+                        <path d="M ${bodyX+20},${lidY-18} Q ${cx},${lidY-lidH-2} ${bodyX+bodyW-20},${lidY-18}" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.25" stroke-linecap="square"/>
+                    </g>
+                    <g>
+                        <rect x="${lockX}" y="${lockY}" width="${lockW}" height="${lockH}" fill="${cfg.accentColor}" stroke="#000000" stroke-width="3" stroke-linejoin="square"/>
+                        <rect x="${lockX+4}" y="${lockY+3}" width="${lockW-8}" height="${lockH-6}" fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="square"/>
+                        <circle cx="${cx}" cy="${lockY+lockH/2+2}" r="5" fill="#000000" stroke="#000000" stroke-width="2"/>
+                        <rect x="${cx-2}" y="${lockY+lockH/2+2}" width="4" height="6" fill="#000000" stroke="#000000" stroke-width="1.5"/>
+                    </g>
+                    ${levelText}
+                </svg>
+            `;
+        }
+
+        function renderChest() {
+            const chestSvgContainer = document.getElementById('chestSvgContainer');
+            const chestContainer = document.getElementById('chestContainer');
+            const chestWrapper = document.getElementById('chestWrapper');
+            const hintTextEl = document.getElementById('hintText');
+            
+            const isOpen = chestState.isOpen || chestState.isEnded;
+            const lidAngle = isOpen ? 75 : 0;
+            const svg = buildChestSVG(chestState.level, isOpen, lidAngle);
+            chestSvgContainer.innerHTML = svg;
+
+            const size = LEVELS[chestState.level].size;
+            chestContainer.style.width = size + 'px';
+            chestContainer.style.height = size + 'px';
+
+            updateClickDots();
+
+            if (chestState.isEnded) {
+                chestWrapper.classList.add('disabled');
+            } else {
+                chestWrapper.classList.remove('disabled');
+            }
+
+            if (chestState.level === 'top' && !chestState.isEnded) {
+                chestContainer.classList.add('top-glow');
+            } else {
+                chestContainer.classList.remove('top-glow');
+            }
+        }
+
+        function updateClickDots() {
+            const clickDots = document.querySelectorAll('.click-dot');
+            clickDots.forEach((dot, i) => {
+                if (i < chestState.clickCount) {
+                    dot.classList.add('filled');
+                } else {
+                    dot.classList.remove('filled');
+                }
+                dot.classList.remove('filled-glow');
+                if (i === chestState.clickCount - 1 && chestState.clickCount > 0) {
+                    dot.classList.add('filled-glow');
+                }
+            });
+        }
+
+        function showLightRays(callback) {
+            const lightRaysEl = document.getElementById('lightRays');
+            const color = LEVELS[chestState.level].lightColor;
+            const count = 18;
+            const cx = 120, cy = 120;
+            const maxR = 140;
+            let rays = '';
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * 2 * Math.PI + Math.random() * 0.08;
+                const r1 = 20 + Math.random() * 20;
+                const r2 = maxR - Math.random() * 20;
+                const x1 = cx + Math.cos(angle) * r1;
+                const y1 = cy + Math.sin(angle) * r1;
+                const x2 = cx + Math.cos(angle) * r2;
+                const y2 = cy + Math.sin(angle) * r2;
+                const width = 3 + Math.random() * 4;
+                rays += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${width}" stroke-linecap="square"><animate attributeName="opacity" from="1" to="0" dur="0.9s" begin="0s"/><animate attributeName="stroke-width" from="${width}" to="1" dur="0.9s" begin="0s"/></line>`;
+            }
+            const glow = `
+                <rect x="${cx-20}" y="${cy-20}" width="40" height="40" fill="${color}" stroke="${color}" stroke-width="4" opacity="0.6">
+                    <animate attributeName="opacity" from="0.8" to="0" dur="0.9s" begin="0s"/>
+                    <animate attributeName="width" from="20" to="60" dur="0.9s" begin="0s"/>
+                    <animate attributeName="height" from="20" to="60" dur="0.9s" begin="0s"/>
+                    <animate attributeName="x" from="${cx-10}" to="${cx-30}" dur="0.9s" begin="0s"/>
+                    <animate attributeName="y" from="${cy-10}" to="${cy-30}" dur="0.9s" begin="0s"/>
+                </rect>
+            `;
+
+            lightRaysEl.innerHTML = `<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">${rays}${glow}</svg>`;
+            lightRaysEl.classList.remove('active');
+            void lightRaysEl.offsetWidth;
+            lightRaysEl.classList.add('active');
+
+            setTimeout(() => {
+                lightRaysEl.classList.remove('active');
+                if (callback) callback();
+            }, 950);
+        }
+
+        function shakeChest() {
+            const chestContainer = document.getElementById('chestContainer');
+            chestContainer.classList.remove('shake');
+            void chestContainer.offsetWidth;
+            chestContainer.classList.add('shake');
+            setTimeout(() => {
+                chestContainer.classList.remove('shake');
+            }, 400);
+        }
+
+        function upgradeFlash() {
+            const chestContainer = document.getElementById('chestContainer');
+            chestContainer.classList.remove('upgrade-flash');
+            void chestContainer.offsetWidth;
+            chestContainer.classList.add('upgrade-flash');
+            setTimeout(() => {
+                chestContainer.classList.remove('upgrade-flash');
+            }, 700);
+        }
+
+        function handleChestClick() {
+            if (chestState.isProcessing || chestState.isEnded || chestState.isOpening || chestState.isOpen) return;
+
+            chestState.clickCount++;
+            shakeChest();
+            updateClickDots();
+
+            const remain = 3 - chestState.clickCount;
+            const hintTextEl = document.getElementById('hintText');
+            if (remain > 0) {
+                hintTextEl.innerHTML = `▣ 再点击 <strong>${remain}</strong> 次开启`;
+            } else {
+                hintTextEl.innerHTML = `◈ 宝箱开启中 ...`;
+            }
+
+            if (chestState.clickCount >= 3) {
+                chestState.isProcessing = true;
+                chestState.isOpening = true;
+                chestState.clickCount = 0;
+                setTimeout(() => {
+                    openChest();
+                }, 400);
+            }
+        }
+
+        function openChest() {
+            chestState.isOpen = true;
+            renderChest();
+            showLightRays(() => {
+                determineResult();
+            });
+            document.getElementById('hintText').innerHTML = `◈ 宝箱打开了！`;
+        }
+
+        function determineResult() {
+            const levelCfg = LEVELS[chestState.level];
+            const isTop = chestState.level === 'top';
+
+            if (isTop) {
+                awardScore(5, '顶级');
+                return;
+            }
+
+            const shouldUpgrade = Math.random() < levelCfg.nextProb;
+            if (shouldUpgrade && levelCfg.nextLevel) {
+                upgradeChest(levelCfg.nextLevel);
+            } else {
+                awardScore(levelCfg.scoreOnOpen, levelCfg.name);
+            }
+        }
+
+        function upgradeChest(nextKey) {
+            const nextCfg = LEVELS[nextKey];
+            const hintTextEl = document.getElementById('hintText');
+            hintTextEl.innerHTML = `⬆ 升级！<strong>${nextCfg.name}</strong> 宝箱`;
+            upgradeFlash();
+
+            chestState.level = nextKey;
+            chestState.clickCount = 0;
+            chestState.isOpen = false;
+            chestState.isOpening = false;
+            chestState.isProcessing = false;
+            renderChest();
+            
+            if (nextKey === 'top') {
+                hintTextEl.innerHTML = `★ 顶级宝箱！点击 <strong>3</strong> 次必得 <strong>5</strong> 积分`;
+            } else {
+                hintTextEl.innerHTML = `▣ 点击 <strong>3</strong> 次开启 ${nextCfg.name}宝箱`;
+            }
+        }
+
+        function awardScore(points, levelName) {
+            chestState.score += points;
+            chestState.isEnded = true;
+            chestState.isOpen = true;
+            chestState.isOpening = false;
+            chestState.isProcessing = false;
+            renderChest();
+            document.getElementById('chestWrapper').classList.add('disabled');
+            document.getElementById('hintText').innerHTML = `◆ 获得 <strong>${points}</strong> 积分！宝箱关闭`;
+
+            showReward(points, levelName);
+
+            fetch(`/api/claim_reward/${problemId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({points: points, chest_level: levelName})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateUserPoints();
+                    checkRewardStatus();
+                }
+            });
+        }
+
+        function showReward(points, levelName) {
+            const rewardOverlay = document.getElementById('rewardOverlay');
+            const rewardIcon = document.getElementById('rewardIcon');
+            const rewardTitle = document.getElementById('rewardTitle');
+            const rewardPoints = document.getElementById('rewardPoints');
+            const rewardSub = document.getElementById('rewardSub');
+
+            rewardIcon.textContent = '◈';
+            rewardTitle.textContent = `${levelName} · 收获`;
+            rewardPoints.innerHTML = `+${points} <span class="pts">积分</span>`;
+            rewardSub.textContent = `来自 ${levelName}宝箱`;
+            rewardOverlay.classList.add('show');
+        }
+
+        function resetChestGame() {
+            chestState = {
+                level: 'primary',
+                clickCount: 0,
+                isOpening: false,
+                isOpen: false,
+                isEnded: false,
+                score: 0,
+                isProcessing: false,
+            };
+            const lightRaysEl = document.getElementById('lightRays');
+            lightRaysEl.classList.remove('active');
+            lightRaysEl.innerHTML = '';
+            renderChest();
+            document.getElementById('hintText').innerHTML = '▣ 点击宝箱 <strong>3</strong> 次开启';
+            updateClickDots();
+        }
+
+        document.getElementById('chestWrapper').addEventListener('click', handleChestClick);
+        
+        document.getElementById('closeRewardBtn').addEventListener('click', function() {
+            document.getElementById('rewardOverlay').classList.remove('show');
+            const chestModal = bootstrap.Modal.getInstance(document.getElementById('chestModal'));
+            if (chestModal) {
+                chestModal.hide();
+            }
+        });
+
+        updateUserPoints();
+        checkRewardStatus();
+    </script>
+
+    <!-- 排行榜弹窗 -->
+    <div class="modal fade" id="leaderboardModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-trophy"></i> 积分排行榜</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>姓名</th>
+                                    <th>班级</th>
+                                    <th>积分</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboardBody">
+                                <tr><td colspan="4" class="text-center">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadLeaderboard() {
+            fetch('/api/leaderboard')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('leaderboardBody');
+                    tbody.innerHTML = '';
+                    data.forEach((item, index) => {
+                        const rank = index + 1;
+                        let rankClass = '';
+                        if (rank === 1) {
+                            rankClass = 'text-warning';
+                        } else if (rank === 2) {
+                            rankClass = 'text-gray-400';
+                        } else if (rank === 3) {
+                            rankClass = 'text-danger';
+                        }
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="font-weight-bold ${rankClass}">${rank}</td>
+                            <td>${item.name}</td>
+                            <td>${item.class_display}</td>
+                            <td class="font-weight-bold">${item.points}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                });
+        }
+
+        document.getElementById('leaderboardModal').addEventListener('show.bs.modal', function() {
+            loadLeaderboard();
         });
     </script>
 </body>

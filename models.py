@@ -6,16 +6,39 @@
 import sqlite3
 import hashlib
 import os
+import datetime
 
 # 数据库路径 - 使用绝对路径确保数据一致性
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'database.db')
 
+def get_db_connection():
+    """获取数据库连接并设置时区为本地时间"""
+    conn = sqlite3.connect(DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+    conn.execute('PRAGMA timezone = local')
+    return conn
+
+def get_local_time():
+    """获取本地时间字符串（YYYY-MM-DD HH:MM:SS）"""
+    return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+def convert_utc_to_local(utc_dt_str):
+    """将UTC时间字符串转换为本地时间字符串"""
+    if not utc_dt_str:
+        return utc_dt_str
+    try:
+        utc_dt = datetime.datetime.strptime(utc_dt_str, '%Y-%m-%d %H:%M:%S')
+        local_dt = utc_dt + datetime.timedelta(hours=8)
+        return local_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except:
+        return utc_dt_str
+
 def init_db():
     """初始化数据库表"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    conn.execute('PRAGMA timezone = local')
 
     # 用户表
     cursor.execute('''
@@ -94,6 +117,33 @@ def init_db():
 
     # 初始化注册开关配置（默认开放注册）
     cursor.execute('INSERT OR IGNORE INTO config (key, value) VALUES ("registration_enabled", "1")')
+
+    # 积分记录表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS points (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            points INTEGER NOT NULL DEFAULT 0,
+            total_points INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
+    # 奖励领取记录表（记录每道题是否已领取奖励）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS rewards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            problem_id INTEGER NOT NULL,
+            points_earned INTEGER NOT NULL DEFAULT 0,
+            chest_level TEXT,
+            claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (problem_id) REFERENCES problems(id),
+            UNIQUE(user_id, problem_id)
+        )
+    ''')
 
     # 用户答题统计视图（用于快速查询）
     cursor.execute('DROP VIEW IF EXISTS user_problem_stats')
@@ -317,7 +367,7 @@ def get_all_problems():
         'description': r[2],
         'category': r[3],
         'is_today': r[4],
-        'created_at': r[5]
+        'created_at': convert_utc_to_local(r[5])
     } for r in results]
 
 def get_problems_by_category(category):
@@ -498,7 +548,7 @@ def get_single_student_stats(problem_id, user_id):
             'total_runs': result[4],
             'total_ai_uses': result[5],
             'ever_passed': bool(result[6]),
-            'passed_at': result[7],
+            'passed_at': convert_utc_to_local(result[7]),
             'passed_code': result[8]
         }
     return None
@@ -538,7 +588,7 @@ def get_all_student_stats(problem_id, grade='', class_number=''):
         'total_runs': r[4],
         'total_ai_uses': r[5],
         'ever_passed': bool(r[6]),
-        'passed_at': r[7],
+        'passed_at': convert_utc_to_local(r[7]),
         'passed_code': r[8]
     } for r in results]
 
@@ -686,7 +736,8 @@ def delete_student_data(grade='', class_number=''):
     if user_ids:
         placeholders = ','.join('?' * len(user_ids))
         cursor.execute(f'DELETE FROM submissions WHERE user_id IN ({placeholders})', user_ids)
-        cursor.execute(f'DELETE FROM user_problem_stats WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM rewards WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM points WHERE user_id IN ({placeholders})', user_ids)
     
     conn.commit()
     conn.close()
@@ -718,12 +769,76 @@ def delete_student_accounts(grade='', class_number=''):
     if user_ids:
         placeholders = ','.join('?' * len(user_ids))
         cursor.execute(f'DELETE FROM submissions WHERE user_id IN ({placeholders})', user_ids)
-        cursor.execute(f'DELETE FROM user_problem_stats WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM rewards WHERE user_id IN ({placeholders})', user_ids)
+        cursor.execute(f'DELETE FROM points WHERE user_id IN ({placeholders})', user_ids)
         cursor.execute(f'DELETE FROM users WHERE id IN ({placeholders})', user_ids)
     
     conn.commit()
     conn.close()
     return len(user_ids)
+
+def search_students_by_name(name):
+    """按姓名搜索学生"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, name, class_id FROM users WHERE role = "student" AND name LIKE ?', 
+                  ('%' + name + '%',))
+    results = cursor.fetchall()
+    conn.close()
+    students = []
+    for r in results:
+        class_info = get_class_by_id(r[2]) if r[2] else None
+        class_display = f"{class_info['grade']}{class_info['class_number']}班" if class_info else '未知'
+        students.append({
+            'id': r[0],
+            'name': r[1],
+            'class_display': class_display
+        })
+    return students
+
+def delete_student_by_id(user_id):
+    """按ID删除单个学生的所有数据（含账号）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM submissions WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM rewards WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM points WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM users WHERE id = ? AND role = "student"', (user_id,))
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
+def delete_student_data_by_id(user_id):
+    """按ID删除单个学生的答题数据（保留账号）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM submissions WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM rewards WHERE user_id = ?', (user_id,))
+    cursor.execute('DELETE FROM points WHERE user_id = ?', (user_id,))
+    conn.commit()
+    affected = cursor.rowcount
+    conn.close()
+    return affected > 0
+
+def get_students_by_class(grade, class_number):
+    """获取指定班级的学生列表"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u.id, u.name, c.grade, c.class_number 
+        FROM users u 
+        JOIN classes c ON u.class_id = c.id 
+        WHERE u.role = "student" AND c.grade = ? AND c.class_number = ?
+        ORDER BY u.name
+    ''', (grade, class_number))
+    results = cursor.fetchall()
+    conn.close()
+    return [{
+        'id': r[0],
+        'name': r[1],
+        'class_display': f"{r[2]}{r[3]}班"
+    } for r in results]
 
 # 初始化示例数据
 def init_sample_data():
@@ -763,6 +878,127 @@ def init_sample_data():
     print("示例数据初始化完成！")
     print("教师账号：teacher1~teacher10")
     print("教师密码：teacher1@2024~teacher10@2024")
+
+# ------------------------------
+# 积分系统函数
+# ------------------------------
+
+def get_user_points(user_id):
+    """获取用户积分"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT points, total_points FROM points WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return {'points': result[0], 'total_points': result[1]}
+    return {'points': 0, 'total_points': 0}
+
+def add_user_points(user_id, points):
+    """增加用户积分"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT points, total_points FROM points WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+        if result:
+            new_points = result[0] + points
+            new_total = result[1] + points
+            cursor.execute('UPDATE points SET points = ?, total_points = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+                          (new_points, new_total, user_id))
+        else:
+            cursor.execute('INSERT INTO points (user_id, points, total_points) VALUES (?, ?, ?)',
+                          (user_id, points, points))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def has_claimed_reward(user_id, problem_id):
+    """检查用户是否已领取某题的奖励"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM rewards WHERE user_id = ? AND problem_id = ?', (user_id, problem_id))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+def claim_reward(user_id, problem_id, points_earned, chest_level):
+    """领取奖励"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO rewards (user_id, problem_id, points_earned, chest_level)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, problem_id, points_earned, chest_level))
+        
+        cursor.execute('SELECT points, total_points FROM points WHERE user_id = ?', (user_id,))
+        result = cursor.fetchone()
+        if result:
+            new_points = result[0] + points_earned
+            new_total = result[1] + points_earned
+            cursor.execute('UPDATE points SET points = ?, total_points = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+                          (new_points, new_total, user_id))
+        else:
+            cursor.execute('INSERT INTO points (user_id, points, total_points) VALUES (?, ?, ?)',
+                          (user_id, points_earned, points_earned))
+        
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    except Exception as e:
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def get_user_reward(user_id, problem_id):
+    """获取用户某题的奖励记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('SELECT points_earned, chest_level, claimed_at FROM rewards WHERE user_id = ? AND problem_id = ?',
+                  (user_id, problem_id))
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+        return {
+            'points_earned': result[0],
+            'chest_level': result[1],
+            'claimed_at': convert_utc_to_local(result[2])
+        }
+    return None
+
+def get_leaderboard(limit=10):
+    """获取积分榜前N名"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT u.id, u.name, u.username, c.grade, c.class_number, 
+               COALESCE(p.points, 0) as points, COALESCE(p.total_points, 0) as total_points
+        FROM users u
+        LEFT JOIN points p ON u.id = p.user_id
+        LEFT JOIN classes c ON u.class_id = c.id
+        WHERE u.role = 'student'
+        ORDER BY COALESCE(p.points, 0) DESC
+        LIMIT ?
+    ''', (limit,))
+    results = cursor.fetchall()
+    conn.close()
+    return [{
+        'user_id': r[0],
+        'name': r[1],
+        'username': r[2],
+        'grade': r[3],
+        'class_number': r[4],
+        'class_display': f"{r[3]}{r[4]}班" if r[3] and r[4] else '未知',
+        'points': r[5],
+        'total_points': r[6]
+    } for r in results]
 
 if __name__ == '__main__':
     init_db()

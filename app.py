@@ -504,15 +504,63 @@ def admin_control():
                     count = models.delete_student_accounts(grade, class_number)
                     message = f'已删除 {count} 名学生的账号及所有数据'
                 message_type = 'success'
+        
+        elif action == 'search_student':
+            search_name = request.form.get('search_name', '')
+            if search_name:
+                search_results = models.search_students_by_name(search_name)
+            else:
+                search_results = []
+        
+        elif action == 'delete_student':
+            student_id = request.form.get('student_id', '')
+            delete_type = request.form.get('delete_type', '')
+            if student_id and delete_type:
+                if delete_type == 'account':
+                    success = models.delete_student_by_id(student_id)
+                    msg_success = '学生账号删除成功'
+                    msg_fail = '删除失败，学生不存在'
+                else:
+                    success = models.delete_student_data_by_id(student_id)
+                    msg_success = '学生答题数据删除成功'
+                    msg_fail = '删除失败'
+                if success:
+                    message = msg_success
+                    message_type = 'success'
+                else:
+                    message = msg_fail
+                    message_type = 'danger'
+            else:
+                message = '请选择要删除的学生和删除方式'
+                message_type = 'danger'
+        
+        elif action == 'view_class_students':
+            grade = request.form.get('grade', '')
+            class_number = request.form.get('class_number', '')
+            if grade and class_number:
+                class_students = models.get_students_by_class(grade, class_number)
+                selected_grade = grade
+                selected_class = class_number
+            else:
+                class_students = []
     
     registration_enabled = models.get_registration_enabled()
     grades = models.get_all_grades()
+    
+    search_results = locals().get('search_results', [])
+    class_students = locals().get('class_students', [])
+    selected_grade = locals().get('selected_grade', '')
+    selected_class = locals().get('selected_class', '')
     
     return render_template('teacher/admin_control.html',
                           registration_enabled=registration_enabled,
                           grades=grades,
                           message=message,
-                          message_type=message_type)
+                          message_type=message_type,
+                          search_results=search_results,
+                          class_students=class_students,
+                          selected_grade=selected_grade,
+                          selected_class=selected_class)
 
 # ------------------------------
 # 学生页面
@@ -618,9 +666,16 @@ def api_execute_code():
         models.add_submission(user_id, problem_id, code, result.get('output', ''), is_passed, run_count=1, ai_count=0, passed_code=save_code)
         
         # 返回统计信息用于前端更新
-        user_stats = models.get_user_submission_stats(user_id, problem_id)
-        result['user_stats'] = user_stats
+        try:
+            user_stats = models.get_user_submission_stats(user_id, problem_id)
+            result['user_stats'] = user_stats
+        except Exception as e:
+            print(f"获取用户统计失败: {e}")
+            result['user_stats'] = None
+        
         result['is_passed'] = bool(is_passed)
+        if is_passed:
+            result['passed_code'] = save_code
     
     return jsonify(result)
 
@@ -813,6 +868,62 @@ def api_user_stats():
     
     return jsonify(stats)
 
+@app.route('/api/user_points')
+@login_required
+def api_user_points():
+    """获取用户积分"""
+    user_id = session['user_id']
+    points = models.get_user_points(user_id)
+    return jsonify(points)
+
+@app.route('/api/check_reward/<int:problem_id>')
+@login_required
+def api_check_reward(problem_id):
+    """检查某题是否可领取奖励"""
+    user_id = session['user_id']
+    user_stats = models.get_user_submission_stats(user_id, problem_id)
+    has_claimed = models.has_claimed_reward(user_id, problem_id)
+    reward = models.get_user_reward(user_id, problem_id)
+    
+    return jsonify({
+        'can_claim': user_stats['ever_passed'] and not has_claimed,
+        'has_claimed': has_claimed,
+        'reward': reward,
+        'ever_passed': user_stats['ever_passed']
+    })
+
+@app.route('/api/claim_reward/<int:problem_id>', methods=['POST'])
+@login_required
+def api_claim_reward(problem_id):
+    """领取奖励"""
+    user_id = session['user_id']
+    
+    if models.has_claimed_reward(user_id, problem_id):
+        return jsonify({'success': False, 'error': '该题目奖励已领取'})
+    
+    user_stats = models.get_user_submission_stats(user_id, problem_id)
+    if not user_stats['ever_passed']:
+        return jsonify({'success': False, 'error': '尚未通过该题目'})
+    
+    data = request.get_json()
+    points_earned = data.get('points', 0)
+    chest_level = data.get('chest_level', '')
+    
+    success = models.claim_reward(user_id, problem_id, points_earned, chest_level)
+    
+    if success:
+        points = models.get_user_points(user_id)
+        return jsonify({'success': True, 'points': points})
+    else:
+        return jsonify({'success': False, 'error': '领取失败'})
+
+@app.route('/api/leaderboard')
+@login_required
+def api_leaderboard():
+    """获取积分榜"""
+    leaderboard = models.get_leaderboard(10)
+    return jsonify(leaderboard)
+
 # ------------------------------
 # 异步代码执行（支持 input）
 # ------------------------------
@@ -867,4 +978,4 @@ if __name__ == '__main__':
     models.init_sample_data()
     
     print('启动 Flask 应用: http://127.0.0.1:8085')
-    app.run(debug=False, host='0.0.0.0', port=8092)
+    app.run(debug=False, host='0.0.0.0', port=8088)

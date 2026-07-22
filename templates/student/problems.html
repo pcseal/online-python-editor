@@ -46,6 +46,11 @@
                                 <i class="bi bi-book-open"></i> 题库
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
+                                <i class="bi bi-trophy"></i> 排行榜
+                            </a>
+                        </li>
                     </ul>
                     <hr class="my-3">
                     <ul class="nav flex-column">
@@ -126,5 +131,72 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- 排行榜弹窗 -->
+    <div class="modal fade" id="leaderboardModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title"><i class="bi bi-trophy"></i> 积分排行榜</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>姓名</th>
+                                    <th>班级</th>
+                                    <th>积分</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboardBody">
+                                <tr><td colspan="4" class="text-center">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadLeaderboard() {
+            fetch('/api/leaderboard')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('leaderboardBody');
+                    tbody.innerHTML = '';
+                    data.forEach((item, index) => {
+                        const rank = index + 1;
+                        let rankClass = '';
+                        let rankIcon = rank;
+                        if (rank === 1) {
+                            rankClass = 'text-warning';
+                            rankIcon = '<i class="bi bi-trophy-fill"></i>';
+                        } else if (rank === 2) {
+                            rankClass = 'text-gray-400';
+                            rankIcon = '<i class="bi bi-medal"></i>';
+                        } else if (rank === 3) {
+                            rankClass = 'text-danger';
+                            rankIcon = '<i class="bi bi-award"></i>';
+                        }
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="font-weight-bold ${rankClass}">${rankIcon}</td>
+                            <td>${item.name}</td>
+                            <td>${item.class_display}</td>
+                            <td class="font-weight-bold">${item.points}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                });
+        }
+
+        document.getElementById('leaderboardModal').addEventListener('show.bs.modal', function() {
+            loadLeaderboard();
+        });
+    </script>
 </body>
 </html>

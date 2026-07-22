@@ -619,6 +619,222 @@ input[type="checkbox"]:checked {
     background: #333333;
 }
 
+/* ------------------------------
+   宝箱游戏样式
+   ------------------------------ */
+.chest-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 6px 0 4px 0;
+    cursor: pointer;
+    min-height: 240px;
+    border: 3px solid var(--giga-border);
+    background: var(--giga-card-bg);
+    padding: 12px;
+}
+
+.chest-wrapper.disabled {
+    cursor: default;
+}
+
+#chestContainer {
+    position: relative;
+    display: inline-block;
+    transition: width 0.3s ease, height 0.3s ease;
+}
+
+#chestContainer svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.shake {
+    animation: shake 0.35s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    20% { transform: translateX(-10px) rotate(-3deg); }
+    40% { transform: translateX(10px) rotate(3deg); }
+    60% { transform: translateX(-6px) rotate(-2deg); }
+    80% { transform: translateX(6px) rotate(2deg); }
+}
+
+.upgrade-flash {
+    animation: flashBW 0.5s ease 2;
+}
+
+@keyframes flashBW {
+    0%, 100% { filter: none; }
+    50% { filter: invert(1); }
+}
+
+.top-glow {
+    animation: borderPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes borderPulse {
+    0% { outline: 4px solid var(--giga-border); outline-offset: 0px; }
+    100% { outline: 8px solid var(--giga-border); outline-offset: 4px; }
+}
+
+.light-rays {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 280px;
+    height: 280px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 10;
+}
+
+.light-rays.active {
+    opacity: 1;
+    animation: rayFade 1s ease-out forwards;
+}
+
+@keyframes rayFade {
+    0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+}
+
+.click-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 12px;
+    margin-bottom: 4px;
+}
+
+.click-dot {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--giga-border);
+    background: var(--giga-card-bg);
+    transition: all 0.15s ease;
+}
+
+.click-dot.filled {
+    background: var(--giga-border);
+}
+
+.click-dot.filled-glow {
+    animation: dotPop 0.35s ease;
+}
+
+@keyframes dotPop {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.4); }
+}
+
+.hint {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--giga-text);
+    margin-top: 12px;
+    min-height: 32px;
+    border: 2px solid var(--giga-border);
+    padding: 6px 12px;
+    background: var(--giga-card-bg);
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.hint strong {
+    background: var(--giga-border);
+    color: #ffffff;
+    padding: 0 8px;
+    font-weight: 900;
+}
+
+.reward-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 3000;
+}
+
+.reward-overlay.show {
+    display: flex;
+    animation: overlayIn 0.25s ease;
+}
+
+@keyframes overlayIn {
+    0% { opacity: 0; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+.reward-card {
+    background: var(--giga-card-bg);
+    border: 6px solid var(--giga-border);
+    padding: 36px 44px 40px 44px;
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 16px 16px 0 var(--giga-border);
+}
+
+.reward-card .reward-icon {
+    font-size: 44px;
+    margin-bottom: 2px;
+}
+
+.reward-card .reward-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--giga-text);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 3px solid var(--giga-border);
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+}
+
+.reward-card .reward-points {
+    font-size: 64px;
+    font-weight: 900;
+    color: var(--giga-text);
+    margin: 4px 0;
+    line-height: 1.1;
+    letter-spacing: 2px;
+}
+
+.reward-card .reward-points .pts {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--giga-text);
+    border: 2px solid var(--giga-border);
+    padding: 0 12px;
+    margin-left: 4px;
+}
+
+.reward-card .reward-sub {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--giga-text);
+    margin-top: 4px;
+    border: 2px solid var(--giga-border);
+    padding: 4px 12px;
+    display: inline-block;
+}
+
+.text-gray-400 {
+    color: #6c757d !important;
+}
+
 @media (max-width: 768px) {
     .card {
         box-shadow: 3px 3px 0px var(--giga-border);
