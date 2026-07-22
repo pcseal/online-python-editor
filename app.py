@@ -589,6 +589,7 @@ def api_execute_code():
     session['last_run_time'] = now
     
     code = request.json.get('code')
+    fillable_answers = request.json.get('fillable_answers', '')
     
     # 获取题目信息（用于获取测试代码）
     problem = None
@@ -613,7 +614,8 @@ def api_execute_code():
         expected_lines = [line.strip() for line in expected_output.split('\n') if line.strip()]
         is_passed = 1 if actual_lines == expected_lines else 0
         
-        models.add_submission(user_id, problem_id, code, result.get('output', ''), is_passed, run_count=1, ai_count=0)
+        save_code = code
+        models.add_submission(user_id, problem_id, code, result.get('output', ''), is_passed, run_count=1, ai_count=0, passed_code=save_code)
         
         # 返回统计信息用于前端更新
         user_stats = models.get_user_submission_stats(user_id, problem_id)
@@ -865,4 +867,4 @@ if __name__ == '__main__':
     models.init_sample_data()
     
     print('启动 Flask 应用: http://127.0.0.1:8085')
-    app.run(debug=False, host='0.0.0.0', port=8080)
+    app.run(debug=False, host='0.0.0.0', port=8092)

@@ -12,6 +12,10 @@
     <style>
         .sidebar { min-height: 100vh; }
         .CodeMirror { min-height: 400px; font-size: 14px; }
+        .cm-s-monokai .CodeMirror-selected { background: #a5d6a7 !important; }
+        .cm-s-monokai .CodeMirror-selected span { color: #000000 !important; }
+        .cm-s-monokai .CodeMirror-selected * { color: #000000 !important; }
+        .cm-s-monokai ::selection { background: #a5d6a7 !important; color: #000000 !important; }
         @media (max-width: 768px) {
             .sidebar { position: fixed; z-index: 1055; width: 250px; }
             .main-content { margin-left: 0; }
@@ -92,17 +96,18 @@
                     <!-- 代码编辑器 -->
                     <div class="col-md-7">
                         <div class="card mb-4">
-                            <div class="card-header bg-dark text-white">
+                            <div class="card-header bg-dark text-white d-flex justify-content-between">
                                 <h5 class="mb-0"><i class="bi bi-code"></i> 代码编辑器</h5>
+                                <div class="btn-group">
+                                    <button class="btn btn-light btn-sm" id="zoom-out-btn" title="缩小"><i class="bi bi-dash-lg"></i></button>
+                                    <button class="btn btn-light btn-sm" id="zoom-in-btn" title="放大"><i class="bi bi-plus-lg"></i></button>
+                                </div>
                             </div>
                             <div class="card-body">
                                 <textarea id="code-editor" class="form-control" rows="40">{{ problem.student_code }}</textarea>
                                 <div class="d-flex justify-content-between mt-3">
                                     <button class="btn btn-primary" id="run-code-btn"><i class="bi bi-play-circle"></i> 运行代码</button>
-                                    <div class="btn-group">
-                                        <button class="btn btn-success" id="evaluate-code-btn"><i class="bi bi-brain"></i> AI 评审</button>
-                                        <button class="btn btn-secondary" id="clear-btn"><i class="bi bi-trash"></i> 清空</button>
-                                    </div>
+                                    <button class="btn btn-success" id="evaluate-code-btn"><i class="bi bi-brain"></i> AI 评审</button>
                                 </div>
                                 <div class="mt-2 text-xs text-muted" id="cooldown-info">
                                     <span id="run-cooldown"></span>
@@ -174,7 +179,7 @@
                             <div class="collapse mt-2" id="passedCodeCollapse">
                                 <div class="card card-body bg-light">
                                     <textarea id="passedCodeTextarea" style="display: none;">{{ user_stats.passed_code }}</textarea>
-                                    <div id="passedCodeEditor" style="height: 300px;"></div>
+                                    <div id="passedCodeEditor" style="height: 120px; max-height: 120px; overflow-y: auto;"></div>
                                 </div>
                             </div>
                         </div>
@@ -210,8 +215,14 @@
         let codeEditor;
         const problemId = {{ problem.id }};
         const expectedOutput = {{ problem.expected_output | tojson }};
+        const studentCode = {{ problem.student_code | tojson }};
+        const fillableSymbols = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'];
+        const fillableMarks = [];
+        let hasFillables = false;
         
         document.addEventListener('DOMContentLoaded', function() {
+            hasFillables = fillableSymbols.some(symbol => studentCode.includes(symbol));
+            
             codeEditor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
                 mode: 'python',
                 theme: 'monokai',
@@ -220,10 +231,14 @@
                 tabSize: 4,
                 lineWrapping: true,
                 autofocus: true,
-                height: '1000px'
+                height: '1000px',
+                readOnly: hasFillables ? true : false
             });
             
-            // 初始化通过代码编辑器（延迟到展开时）
+            if (hasFillables) {
+                setupFillableInputs();
+            }
+            
             const passedCodeCollapse = document.getElementById('passedCodeCollapse');
             if (passedCodeCollapse) {
                 passedCodeCollapse.addEventListener('shown.bs.collapse', function() {
@@ -237,16 +252,97 @@
                             indentUnit: 4,
                             tabSize: 4
                         });
-                        passedCodeEditor.setSize('100%', '500px');
+                        passedCodeEditor.setSize('100%', '120px');
                         passedCodeTextarea.dataset.editorInitialized = 'true';
                     }
                 });
             }
         });
+        
+        function setupFillableInputs() {
+            const code = codeEditor.getValue();
+            const lines = code.split('\n');
+            
+            for (const symbol of fillableSymbols) {
+                for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                    const line = lines[lineNum];
+                    let pos = line.indexOf(symbol);
+                    
+                    while (pos !== -1) {
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.className = 'fillable-input';
+                        input.dataset.symbol = symbol;
+                        input.style.width = '180px';
+                        input.style.height = '24px';
+                        input.style.backgroundColor = '#ffffff';
+                        input.style.color = '#000000';
+                        input.style.border = '1px solid #ccc';
+                        input.style.borderRadius = '3px';
+                        input.style.padding = '0 6px';
+                        input.style.fontFamily = 'monospace';
+                        input.style.fontSize = '14px';
+                        input.style.outline = 'none';
+                        input.style.boxSizing = 'border-box';
+                        input.style.margin = '0 2px';
+                        input.placeholder = symbol;
+                        
+                        input.addEventListener('mousedown', function(e) {
+                            e.stopPropagation();
+                            this.focus();
+                        });
+                        
+                        input.addEventListener('focus', function() {
+                            this.select();
+                        });
+                        
+                        const from = {line: lineNum, ch: pos};
+                        const to = {line: lineNum, ch: pos + symbol.length};
+                        
+                        const mark = codeEditor.markText(from, to, {
+                            replacedWith: input,
+                            handleMouseEvents: true,
+                            inclusiveLeft: true,
+                            inclusiveRight: true
+                        });
+                        
+                        fillableMarks.push({mark, symbol, input});
+                        
+                        pos = line.indexOf(symbol, pos + symbol.length);
+                    }
+                }
+            }
+        }
+        
+        function getFullCode() {
+            let code = codeEditor.getValue();
+            
+            for (const {symbol, input} of fillableMarks) {
+                const value = input.value.trim();
+                if (value) {
+                    code = code.replace(new RegExp(symbol.replace(/[①②③④⑤⑥⑦⑧⑨]/g, '\\$&'), 'g'), value);
+                }
+            }
+            
+            return code;
+        }
+        
+        function getFillableAnswers() {
+            let answers = '';
+            
+            for (const {symbol, input} of fillableMarks) {
+                const value = input.value.trim();
+                if (value) {
+                    if (answers) answers += ' ';
+                    answers += `${symbol}${value}`;
+                }
+            }
+            
+            return answers ? `FILLABLE:${answers}` : '';
+        }
 
         const runBtn = document.getElementById('run-code-btn');
         const evaluateBtn = document.getElementById('evaluate-code-btn');
-        const clearBtn = document.getElementById('clear-btn');
         const output = document.getElementById('execution-output');
         const evalSection = document.getElementById('evaluation-section');
         const evalContent = document.getElementById('evaluation-content');
@@ -262,6 +358,26 @@
         let lastExecutionResult = null;
         let isRunning = false;
         let isEvaluating = false;
+        let currentFontSize = 14;
+
+        const zoomInBtn = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
+
+        zoomInBtn.addEventListener('click', function() {
+            if (currentFontSize < 24) {
+                currentFontSize += 1;
+                codeEditor.getWrapperElement().style.fontSize = currentFontSize + 'px';
+                codeEditor.refresh();
+            }
+        });
+
+        zoomOutBtn.addEventListener('click', function() {
+            if (currentFontSize > 10) {
+                currentFontSize -= 1;
+                codeEditor.getWrapperElement().style.fontSize = currentFontSize + 'px';
+                codeEditor.refresh();
+            }
+        });
 
         runBtn.addEventListener('click', function() {
             if (isRunning) {
@@ -269,7 +385,7 @@
                 return;
             }
             
-            const code = codeEditor.getValue();
+            const code = getFullCode();
             if (!code.trim()) {
                 alert('请先编写代码');
                 return;
@@ -284,7 +400,11 @@
             fetch('/api/execute_code', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({code: code, problem_id: problemId})
+                body: JSON.stringify({
+                    code: code, 
+                    problem_id: problemId,
+                    fillable_answers: getFillableAnswers()
+                })
             })
             .then(response => response.json())
             .then(data => {
@@ -307,7 +427,7 @@
                 if (data.is_passed) {
                     output.innerHTML += '<div class="mt-2 p-2 bg-success text-dark rounded text-center font-weight-bold">✓ 恭喜！答案正确，已通过</div>';
                 } else if (!errorText && data.output !== undefined) {
-                    output.innerHTML += '<div class="mt-2 p-2 bg-warning text-white rounded text-center">✗ 输出与预期不符</div>';
+                    output.innerHTML += '<div class="mt-2 p-2 bg-warning text-dark rounded text-center">✗ 输出与预期不符</div>';
                 }
                 
                 // 保存执行结果供AI分析使用（无论成功还是失败）
@@ -342,7 +462,7 @@
                 return;
             }
             
-            const code = codeEditor.getValue();
+            const code = getFullCode();
             if (!code.trim()) {
                 alert('请先编写代码');
                 return;
@@ -388,11 +508,6 @@
                 evaluateBtn.disabled = false;
                 evaluateBtn.innerHTML = '<i class="bi bi-brain"></i> AI 评审';
             });
-        });
-
-        clearBtn.addEventListener('click', function() {
-            output.innerHTML = '# 输出已清空';
-            evalSection.style.display = 'none';
         });
 
         closeEval.addEventListener('click', function() {

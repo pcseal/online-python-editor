@@ -379,12 +379,13 @@ def get_all_categories():
     conn.close()
     return [r[0] for r in results]
 
-def add_submission(user_id, problem_id, code, output, is_passed, run_count=1, ai_count=0):
+def add_submission(user_id, problem_id, code, output, is_passed, run_count=1, ai_count=0, passed_code=None):
     """添加答题记录"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # 如果通过，保存通过的代码
-    passed_code = code if is_passed else None
+    # 如果通过，保存通过的代码（优先使用传入的passed_code，否则使用完整代码）
+    if passed_code is None:
+        passed_code = code if is_passed else None
     cursor.execute('''
         INSERT INTO submissions (user_id, problem_id, code, output, is_passed, run_count, ai_count, passed_code)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)

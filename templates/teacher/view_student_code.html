@@ -99,7 +99,7 @@
                     </div>
                     <div class="card-body">
                         <textarea id="codeTextarea" style="display: none;">{{ passed_code }}</textarea>
-                        <div id="codeEditor" style="height: 500px;"></div>
+                        <div id="codeEditor" style="height: 120px; max-height: 120px; overflow-y: auto;"></div>
                     </div>
                 </div>
             </main>
@@ -121,7 +121,7 @@
             tabSize: 4,
             indentWithTabs: false
         });
-        codeEditor.setSize('100%', '500px');
+        codeEditor.setSize('100%', '120px');
     </script>
 </body>
 </html>

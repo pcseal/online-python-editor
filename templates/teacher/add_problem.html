@@ -119,7 +119,17 @@
                             </div>
                             <div class="mb-4">
                                 <label for="student_code" class="form-label">学生模板代码（含挖空）</label>
-                                <textarea class="form-control" id="student_code" name="student_code" rows="10" placeholder="给学生的模板代码，可以包含注释提示或挖空" required></textarea>
+                                <textarea class="form-control" id="student_code" name="student_code" rows="10" placeholder="给学生的模板代码，使用①②③④等符号标记填空位置" required></textarea>
+                                <div class="mt-2 p-3 bg-light rounded border">
+                                    <strong>挖空格式说明：</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>使用 <code>①</code>、<code>②</code>、<code>③</code>、<code>④</code> 等中文数字符号标记填空位置</li>
+                                        <li>学生只能在填空区域内编辑代码</li>
+                                        <li>示例：<code>for i in range(①):</code> 或 <code>result = ②</code></li>
+                                        <li>最多支持9个填空位置（①-⑨）</li>
+                                        <li>通过题目后，系统只保存学生填写的答案，格式如：<code>①10 ②a+b</code></li>
+                                    </ul>
+                                </div>
                             </div>
                             <div class="mb-4">
                                 <label for="expected_output" class="form-label">预期输出结果</label>
