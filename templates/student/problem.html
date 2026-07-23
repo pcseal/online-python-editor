@@ -325,7 +325,7 @@
                         input.className = 'fillable-input';
                         input.dataset.symbol = symbol;
                         input.style.width = '180px';
-                        input.style.height = '24px';
+                        input.style.height = '28px';
                         input.style.backgroundColor = '#ffffff';
                         input.style.color = '#000000';
                         input.style.border = '1px solid #ccc';
@@ -337,14 +337,20 @@
                         input.style.boxSizing = 'border-box';
                         input.style.margin = '0 2px';
                         input.placeholder = symbol;
+                        input.inputMode = 'text';
+                        input.autocomplete = 'off';
+                        input.autocapitalize = 'none';
+                        input.spellcheck = false;
+                        input.setAttribute('autocorrect', 'off');
                         
                         input.addEventListener('mousedown', function(e) {
                             e.stopPropagation();
-                            this.focus();
                         });
-                        
-                        input.addEventListener('focus', function() {
-                            this.select();
+                        input.addEventListener('touchstart', function(e) {
+                            e.stopPropagation();
+                        }, {passive: false});
+                        input.addEventListener('click', function(e) {
+                            e.stopPropagation();
                         });
                         
                         const from = {line: lineNum, ch: pos};
@@ -352,7 +358,7 @@
                         
                         const mark = codeEditor.markText(from, to, {
                             replacedWith: input,
-                            handleMouseEvents: true,
+                            handleMouseEvents: false,
                             inclusiveLeft: true,
                             inclusiveRight: true
                         });
