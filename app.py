@@ -837,8 +837,15 @@ def api_evaluate_code():
             return jsonify({'error': f'AI 服务返回错误: {response.text[:200]}'}), 500
         
         result = response.json()
-        evaluation = result['choices'][0]['message']['content']
-        
+        # 容错：AI 偶发返回空内容（finish_reason=length 截断、模型异常等）
+        try:
+            evaluation = result['choices'][0]['message']['content'] or ''
+        except (KeyError, IndexError, TypeError):
+            evaluation = ''
+
+        if not evaluation or not evaluation.strip():
+            evaluation = 'AI 本次未返回有效内容（可能因内容长度限制被截断或服务异常），请稍后重试。'
+
         # 更新 AI 使用统计
         if problem_id:
             user_id = session['user_id']
@@ -846,7 +853,7 @@ def api_evaluate_code():
             # 获取更新后的统计信息
             user_stats = models.get_user_submission_stats(user_id, problem_id)
             return jsonify({'evaluation': evaluation, 'user_stats': user_stats})
-        
+
         return jsonify({'evaluation': evaluation})
     
     except requests.exceptions.Timeout:

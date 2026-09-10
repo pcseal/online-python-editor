@@ -588,20 +588,53 @@
         });
 
         function formatMarkdown(text) {
+            // 容错：AI 偶发返回空内容时给出明确提示，避免页面显示空白
+            if (text === null || text === undefined) {
+                return '<div class="alert alert-warning mb-0">AI 未返回任何内容，请稍后重试。</div>';
+            }
+            if (typeof text !== 'string') {
+                text = String(text);
+            }
+            if (text.trim() === '') {
+                return '<div class="alert alert-warning mb-0">AI 本次返回内容为空，请稍后重试。</div>';
+            }
+
             let html = escapeHtml(text);
+
+            // 关键：先处理多行代码块（```...```），再处理行内代码（`...`）
+            // 否则行内代码正则会先把代码块开头的反引号吃掉，破坏代码块结构，
+            // 导致内容显示混乱或部分丢失
+            html = html.replace(/```python\n([\s\S]*?)```/g, function(_, code) {
+                return '<pre class="bg-dark text-light p-3 rounded my-2"><code>' + code + '</code></pre>';
+            });
+            html = html.replace(/```(?:[a-zA-Z0-9]*)?\n([\s\S]*?)```/g, function(_, code) {
+                return '<pre class="bg-dark text-light p-3 rounded my-2"><code>' + code + '</code></pre>';
+            });
+            // 容错：处理被 max_tokens 截断、未闭合的代码块
+            html = html.replace(/```(?:[a-zA-Z0-9]*)?\n([\s\S]*)$/g, function(_, code) {
+                return '<pre class="bg-dark text-light p-3 rounded my-2"><code>' + code + '</code></pre>';
+            });
+
+            // 标题、粗体
             html = html.replace(/### (.*)/g, '<h5 class="text-primary mt-3">$1</h5>');
             html = html.replace(/## (.*)/g, '<h4 class="text-success mt-4">$1</h4>');
             html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            html = html.replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>');
-            html = html.replace(/```python\n([\s\S]*?)```/g, '<pre class="bg-dark text-light p-3 rounded my-2"><code>$1</code></pre>');
-            html = html.replace(/```\n([\s\S]*?)```/g, '<pre class="bg-dark text-light p-3 rounded my-2"><code>$1</code></pre>');
+
+            // 行内代码（在代码块之后处理，避免破坏代码块）
+            html = html.replace(/`([^`<>]+)`/g, '<code class="bg-light px-1 rounded">$1</code>');
+
+            // 换行：<pre> 内保留原始换行，不在其内部插入 <br>
             html = html.replace(/\n/g, '<br>');
+            // 修复 <pre> 内部因上一步插入的 <br>，恢复为纯换行
+            html = html.replace(/(<pre[^>]*><code>)([\s\S]*?)(<\/code><\/pre>)/g, function(_, open, code, close) {
+                return open + code.replace(/<br>/g, '\n') + close;
+            });
             return html;
         }
 
         function escapeHtml(text) {
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = (text === null || text === undefined) ? '' : text;
             return div.innerHTML;
         }
 
