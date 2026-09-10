@@ -50,6 +50,9 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev_key_please_change')
 AI_API_KEY = os.getenv('DEEPSEEK_API_KEY', os.getenv('OPENAI_API_KEY', ''))
 AI_BASE_URL = os.getenv('DEEPSEEK_BASE_URL', os.getenv('OPENAI_BASE_URL', 'https://api.deepseek.com'))
 AI_MODEL = os.getenv('DEEPSEEK_MODEL', os.getenv('OPENAI_MODEL', 'deepseek-v4-flash'))
+# AI 参数（从 .env 读取，避免硬编码导致配置不生效）
+AI_MAX_TOKENS = int(os.getenv('DEFAULT_MAX_TOKENS', '2000'))
+AI_TEMPERATURE = float(os.getenv('DEFAULT_TEMPERATURE', '0.5'))
 
 # 限制配置
 RUN_COOLDOWN = 5  # 代码运行冷却时间（秒）
@@ -826,20 +829,42 @@ def api_evaluate_code():
 '''},
                 {'role': 'user', 'content': prompt.strip()},
             ],
-            'max_tokens': 1000,
+            'max_tokens': AI_MAX_TOKENS,
             'temperature': 0.3,
             'stream': False,
         }
         
         response = requests.post(url, headers=headers, json=payload, timeout=60)
-        
+
         if response.status_code != 200:
             return jsonify({'error': f'AI 服务返回错误: {response.text[:200]}'}), 500
-        
+
         result = response.json()
-        # 容错：AI 偶发返回空内容（finish_reason=length 截断、模型异常等）
+        # 诊断日志：捕获 AI 空返回的真实原因
         try:
-            evaluation = result['choices'][0]['message']['content'] or ''
+            _choice = result.get('choices', [{}])[0] if result.get('choices') else {}
+            _msg = _choice.get('message', {}) if isinstance(_choice, dict) else {}
+            _content = _msg.get('content', '<MISSING>')
+            _reasoning = _msg.get('reasoning_content', '<MISSING>')
+            _finish = _choice.get('finish_reason', '<MISSING>') if isinstance(_choice, dict) else '<MISSING>'
+            _usage = result.get('usage', {})
+            print(f"[AI诊断] finish_reason={_finish} content_type={type(_content).__name__} "
+                  f"content_len={len(_content) if isinstance(_content, str) else 'N/A'} "
+                  f"is_empty={not _content if isinstance(_content, str) else 'N/A'} "
+                  f"reasoning_len={len(_reasoning) if isinstance(_reasoning, str) else 'N/A'} "
+                  f"usage={_usage} model={result.get('model')}", flush=True)
+            if not _content:
+                # 空内容时打印完整响应结构，定位问题
+                import json as _json
+                print(f"[AI诊断] 空内容完整响应: {_json.dumps(result, ensure_ascii=False)[:1000]}", flush=True)
+        except Exception as _e:
+            print(f"[AI诊断] 日志异常: {_e}", flush=True)
+
+        # 容错：AI 偶发返回空 content，尝试 reasoning_content（deepseek-flash/推理模型偶发）
+        evaluation = ''
+        try:
+            _msg = result['choices'][0]['message']
+            evaluation = _msg.get('content') or _msg.get('reasoning_content') or ''
         except (KeyError, IndexError, TypeError):
             evaluation = ''
 
